@@ -15,6 +15,7 @@
 module purge
 module load arch/h100
 module load python/3.11.5
+module load cuda/12.4.1
 
 set -x -e
 
