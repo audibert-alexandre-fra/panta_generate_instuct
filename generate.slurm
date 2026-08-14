@@ -14,6 +14,7 @@
 
 module purge
 module load arch/a100
+module load python/3.11.5
 
 set -x -e
 
