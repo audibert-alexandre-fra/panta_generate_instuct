@@ -32,8 +32,11 @@ Cell = tuple[Theme, SousTheme, Persona]
 logger = logging.getLogger(__name__)
 
 
-def build_llm(model: str = DEFAULT_MODEL, **llm_kwargs) -> LLM:
-    return LLM(model=model, **llm_kwargs)
+def build_llm(model: str = DEFAULT_MODEL, enforce_eager: bool = True, **llm_kwargs) -> LLM:
+    # enforce_eager=True par défaut : évite torch.compile, dont la passe de fusion
+    # AllReduce importe flashinfer.comm, qui utilise l'annotation `array.array[int]`
+    # incompatible avec Python < 3.13 (TypeError: 'array.array' is not subscriptable).
+    return LLM(model=model, enforce_eager=enforce_eager, **llm_kwargs)
 
 
 def _cells(taxonomy: Taxonomy) -> list[Cell]:
@@ -146,6 +149,15 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--model", default=DEFAULT_MODEL, help="Modèle enseignant servi par vLLM.")
     parser.add_argument(
+        "--no-enforce-eager",
+        dest="enforce_eager",
+        action="store_false",
+        help=(
+            "Active torch.compile dans vLLM (désactivé par défaut : incompatible "
+            "avec flashinfer sous Python < 3.13, cf. build_llm)."
+        ),
+    )
+    parser.add_argument(
         "--taxonomy",
         type=Path,
         default=Path("src/panta_generate_data_instruct/config/taxonomy.yaml"),
@@ -175,7 +187,7 @@ def main() -> None:
     logging.basicConfig(level=args.log_level, format="%(asctime)s [%(levelname)s] %(message)s")
 
     taxonomy = Taxonomy.from_yaml(args.taxonomy)
-    llm = build_llm(args.model)
+    llm = build_llm(args.model, enforce_eager=args.enforce_eager)
     examples = generate_examples(
         llm,
         taxonomy,
