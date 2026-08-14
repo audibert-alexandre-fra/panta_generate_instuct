@@ -13,7 +13,7 @@
 #SBATCH --constraint=h100
 
 module purge
-module load arch/a100
+module load arch/h100
 module load python/3.11.5
 
 set -x -e
@@ -27,5 +27,12 @@ export PYTORCH_ALLOC_CONF=expandable_segments:True
 # ces variables empêchent vLLM/HF de tenter de contacter le Hub.
 export HF_HUB_OFFLINE=1
 export TRANSFORMERS_OFFLINE=1
+
+# Triton compile un petit module C (cuda_utils) à la volée et a besoin
+# des headers de développement du Python du venv (uv) — sans ça gcc
+# retombe sur le Python système, qui n'a pas Python.h, et la compilation
+# échoue (fatal error: Python.h: No such file or directory).
+PY_INCLUDE=$(uv run python -c "import sysconfig; print(sysconfig.get_paths()['include'])")
+export CPATH="${PY_INCLUDE}:${CPATH}"
 
 srun uv run python -u -m panta_generate_data_instruct.generate --model Qwen/Qwen3-8B --n-per-cell 5 --output data/raw/generated.jsonl --raw-log data/raw/generated_raw_log.json --log-level INFO
