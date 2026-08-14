@@ -4,7 +4,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --hint=nomultithread
-#SBATCH --time=01:00:00
+#SBATCH --time=20:00:00
 #SBATCH --output=./logs_slurm/generate_instruct.out
 #SBATCH --error=./logs_slurm/generate_instruct.err
 #SBATCH --account=oou@h100
