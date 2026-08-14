@@ -1,13 +1,12 @@
 #!/bin/bash
 #SBATCH --job-name=Trainning_TTP
 #SBATCH --nodes=1
-#SBATCH --gres=gpu:4
-#SBATCH --ntasks-per-node=4
-#SBATCH --cpus-per-task=8
+#SBATCH --ntasks-per-node=1
+#SBATCH --cpus-per-task=4
 #SBATCH --hint=nomultithread
-#SBATCH --time=20:00:00
-#SBATCH --output=./logs_slurm/step_2e5.out
-#SBATCH --error=./logs_slurm/step_2e5.err
+#SBATCH --time=01:00:00
+#SBATCH --output=./logs_slurm/generate_instruct.out
+#SBATCH --error=./logs_slurm/generate_instruct.err
 #SBATCH --account=oou@h100
 #SBATCH --mail-type=BEGIN,FAIL,ABORT,END
 #SBATCH --constraint=h100
