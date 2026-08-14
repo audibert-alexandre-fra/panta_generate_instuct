@@ -1,0 +1,20 @@
+[project]
+name = "panta-generate-data-instruct"
+version = "0.1.0"
+description = "Génération synthétique d'un jeu de données instruct pour un assistant conversationnel destiné aux utilisateurs de la CAA (médical, famille, vie quotidienne, école)."
+authors = [
+    { name = "Alexandre Audibert", email = "audibeal@racer.imag.fr" }
+]
+requires-python = ">=3.11"
+dependencies = [
+    "numpy>=1.26",
+    "pydantic>=2.7",
+    "pyyaml>=6.0",
+    "sentence-transformers>=3.0",
+    "tqdm>=4.66",
+    "vllm>=0.6.0",
+]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

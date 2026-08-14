@@ -1,0 +1,112 @@
+# Taxonomie du pilote : thèmes, sous-thèmes, personas et quotas.
+# Sert de graine à la génération (self-instruct) dans generate.py.
+#
+# Volume cible : 4 thèmes x 4 sous-thèmes x 6 personas x 5 exemples = 480 exemples.
+
+style_guide:
+  registre: FALC (Facile à Lire et à Comprendre)
+  regles:
+    - Phrases courtes (une idée par phrase).
+    - Vocabulaire concret, pas de jargon.
+    - Pas d'expressions idiomatiques ni de sens figuré.
+    - Ton direct et bienveillant, jamais infantilisant.
+    - Le champ instruction reflète un message composé via un système de CAA ; il peut
+      être télégraphique ou en mots-clés selon le niveau de langage du persona, pas
+      forcément une phrase grammaticalement complète.
+    - Le champ output est toujours une phrase complète, simple et adaptée au persona.
+
+personas:
+  - id: enfant_pictogrammes
+    age: "6-10 ans"
+    profil: trouble du spectre autistique
+    niveau_langage: télégraphique (mots-clés)
+    moyen_caa: tableau de pictogrammes
+  - id: adolescent_synthese_vocale
+    age: "11-17 ans"
+    profil: infirmité motrice cérébrale (IMC)
+    niveau_langage: phrases courtes
+    moyen_caa: tablette à commande oculaire avec synthèse vocale
+  - id: adulte_paralysie_cerebrale
+    age: "18-40 ans"
+    profil: paralysie cérébrale
+    niveau_langage: phrases courtes à moyennes
+    moyen_caa: clavier à défilement + synthèse vocale (contacteur)
+  - id: adulte_aphasie_avc
+    age: "40-65 ans"
+    profil: aphasie suite à un AVC
+    niveau_langage: télégraphique (mots isolés)
+    moyen_caa: tableau alphabétique et pictogrammes
+  - id: adulte_sla
+    age: "40-65 ans"
+    profil: sclérose latérale amyotrophique (SLA)
+    niveau_langage: phrases complètes mais lentes à composer
+    moyen_caa: commande oculaire + synthèse vocale
+  - id: personne_agee_trouble_neuro
+    age: "65 ans et plus"
+    profil: séquelles d'AVC / trouble neurodégénératif
+    niveau_langage: phrases courtes
+    moyen_caa: tableau de communication papier et gestes
+
+themes:
+  medical:
+    label: Médical
+    contexte: Questions et échanges d'un·e patient·e avec un·e spécialiste (médecin, kiné, orthophoniste...).
+    contraintes_specifiques:
+      - Jamais de diagnostic, de posologie ou de conseil médical direct.
+      - L'assistant aide à formuler ou clarifier une question à poser au·à la spécialiste,
+        il ne se substitue jamais à un avis médical.
+    quota_exemples: 120
+    sous_themes:
+      - id: effets_secondaires
+        description: Poser une question sur un effet secondaire ressenti.
+      - id: douleur_gene
+        description: Décrire une douleur ou une gêne physique.
+      - id: clarification_traitement
+        description: Demander une clarification sur un traitement ou un examen.
+      - id: preparation_rdv
+        description: Préparer les questions à poser avant un rendez-vous.
+
+  famille:
+    label: Famille
+    contexte: Échanges avec les proches (parents, fratrie, enfants, conjoint·e).
+    contraintes_specifiques: []
+    quota_exemples: 120
+    sous_themes:
+      - id: exprimer_emotion
+        description: Exprimer une émotion (joie, colère, fatigue, inquiétude) à un proche.
+      - id: demander_aide_tache
+        description: Demander de l'aide pour une tâche du quotidien.
+      - id: raconter_journee
+        description: Raconter sa journée ou un évènement vécu.
+      - id: negocier_pause
+        description: Négocier un moment calme ou une pause.
+
+  vie_quotidienne:
+    label: Vie quotidienne
+    contexte: Situations de la vie courante hors cercle familial et scolaire.
+    contraintes_specifiques: []
+    quota_exemples: 120
+    sous_themes:
+      - id: demande_lieu_public
+        description: Faire une demande dans un lieu public (restaurant, magasin, transport).
+      - id: gerer_imprevu
+        description: Gérer un imprévu (retard, changement de programme).
+      - id: exprimer_preference_refus
+        description: Exprimer une préférence ou un refus.
+      - id: demander_itineraire
+        description: Demander son chemin ou une information d'orientation.
+
+  ecole:
+    label: École
+    contexte: "Vie scolaire : classe, enseignant·e, camarades."
+    contraintes_specifiques: []
+    quota_exemples: 120
+    sous_themes:
+      - id: question_enseignant
+        description: Poser une question à un·e enseignant·e.
+      - id: aide_camarade
+        description: Demander de l'aide à un·e camarade.
+      - id: activite_groupe
+        description: Participer à une activité de groupe.
+      - id: signaler_incomprehension
+        description: Signaler une incompréhension pendant un cours.
