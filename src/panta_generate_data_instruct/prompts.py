@@ -4,8 +4,15 @@ from __future__ import annotations
 
 from panta_generate_data_instruct.schemas import Persona, SousTheme, StyleGuide, Theme
 
-SYSTEM_PROMPT = """Tu es un générateur de données d'entraînement pour un assistant conversationnel \
-destiné à des personnes utilisant la Communication Alternative et Améliorée (CAA).
+SYSTEM_PROMPT = """Tu es un générateur de données d'entraînement pour un modèle destiné à des \
+personnes utilisant la Communication Alternative et Améliorée (CAA).
+
+Chaque exemple simule un échange réel : "instruction" est le message composé par le \
+persona via son moyen de CAA, et "output" est la réponse que donnerait réellement \
+l'interlocuteur·rice du contexte (le·la professionnel·le, proche ou camarade concerné·e \
+— précisé dans chaque prompt utilisateur), pas une réponse générique d'assistant. \
+Cet·te interlocuteur·rice s'exprime dans un français simple et accessible, adapté à une \
+personne qui communique via la CAA.
 
 Registre : {registre}
 
@@ -19,6 +26,7 @@ Aucun texte hors de cet objet JSON."""
 
 USER_PROMPT_TEMPLATE = """Thème : {theme_label}
 Contexte : {theme_contexte}
+Interlocuteur·rice à qui le persona s'adresse : {theme_interlocuteur}
 Sous-thème : {sous_theme_id} — {sous_theme_description}
 {contraintes_bloc}
 Persona :
@@ -26,12 +34,25 @@ Persona :
 - Profil : {persona_profil}
 - Niveau de langage : {persona_niveau_langage}
 - Moyen de CAA utilisé : {persona_moyen_caa}
+- Exemple de niveau de langage pour ce persona (à adapter au sous-thème, ne pas \
+recopier tel quel) : "{persona_exemple_instruction}"
 
 Génère un exemple d'échange pour ce persona et ce sous-thème :
-- "instruction" : le message tel que le persona le composerait via son moyen de CAA \
-(peut être télégraphique ou en mots-clés selon son niveau de langage).
-- "output" : la réponse de l'assistant, en français correctement écrit, phrase(s) \
-complète(s), simple(s) et adaptée(s) au persona, dans le registre FALC.
+- "instruction" : le message tel que le persona le composerait via son moyen de CAA, \
+dans le même registre que l'exemple de niveau de langage ci-dessus (ni plus \
+télégraphique, ni plus élaboré). Même simplifié, il doit toujours rester une phrase \
+à peu près correcte et reconnaissable comme une phrase (mots manquants ou \
+conjugaison approximative tolérés), portant une vraie question ou une vraie demande \
+avec une intention claire, compréhensible sans contexte supplémentaire. Une simple \
+liste de mots-clés juxtaposés sans lien grammatical n'est jamais acceptable, quel que \
+soit le persona (mauvais exemples, à ne jamais produire : "couleur vert", "docteur \
+pilule vert langue pourquoi").
+- "output" : la réponse que donnerait réellement l'interlocuteur·rice précisé·e \
+ci-dessus (pas un·e assistant·e générique), en français correctement écrit, phrase(s) \
+complète(s), simple(s) et adaptée(s) à l'âge et au profil du persona (vocabulaire \
+et longueur de phrase ajustés, par ex. plus simples pour un enfant que pour un \
+adulte), dans le registre FALC, et en respectant les éventuelles contraintes \
+spécifiques au thème listées ci-dessus.
 
 Réponds uniquement avec l'objet JSON demandé."""
 
@@ -50,6 +71,7 @@ def build_user_prompt(theme: Theme, sous_theme: SousTheme, persona: Persona) -> 
     return USER_PROMPT_TEMPLATE.format(
         theme_label=theme.label,
         theme_contexte=theme.contexte,
+        theme_interlocuteur=theme.interlocuteur,
         sous_theme_id=sous_theme.id,
         sous_theme_description=sous_theme.description,
         contraintes_bloc=contraintes_bloc,
@@ -57,4 +79,5 @@ def build_user_prompt(theme: Theme, sous_theme: SousTheme, persona: Persona) -> 
         persona_profil=persona.profil,
         persona_niveau_langage=persona.niveau_langage,
         persona_moyen_caa=persona.moyen_caa,
+        persona_exemple_instruction=persona.exemple_instruction,
     )

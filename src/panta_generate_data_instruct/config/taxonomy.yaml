@@ -10,9 +10,18 @@ style_guide:
     - Vocabulaire concret, pas de jargon.
     - Pas d'expressions idiomatiques ni de sens figuré.
     - Ton direct et bienveillant, jamais infantilisant.
-    - Le champ instruction reflète un message composé via un système de CAA ; il peut
-      être télégraphique ou en mots-clés selon le niveau de langage du persona, pas
-      forcément une phrase grammaticalement complète.
+    - "Le champ instruction reflète un message composé via un système de CAA ; son degré
+      de simplicité (longueur, mots manquants, absence de conjugaison) doit
+      correspondre au niveau de langage et à l'exemple donnés pour le persona (voir
+      personas ci-dessous), mais il doit toujours rester une phrase à peu près
+      correcte, reconnaissable comme une phrase même simplifiée (par ex. \"Pourquoi
+      pilule fait langue verte, docteur ?\" est correct). Une simple liste de mots
+      juxtaposés sans lien grammatical (par ex. \"docteur pilule vert langue
+      pourquoi\") n'est jamais acceptable, quel que soit le persona."
+    - "Interdiction que le champ instruction se limite à un ou deux mots isolés, ou à
+      une liste de mots-clés sans lien grammatical entre eux : il doit toujours
+      indiquer clairement, sous forme de phrase, ce que le persona veut savoir, dire
+      ou demander."
     - Le champ output est toujours une phrase complète, simple et adaptée au persona.
 
 personas:
@@ -21,40 +30,49 @@ personas:
     profil: trouble du spectre autistique
     niveau_langage: télégraphique (mots-clés)
     moyen_caa: tableau de pictogrammes
+    exemple_instruction: "Pourquoi pilule fait langue verte, docteur ?"
   - id: adolescent_synthese_vocale
     age: "11-17 ans"
     profil: infirmité motrice cérébrale (IMC)
     niveau_langage: phrases courtes
     moyen_caa: tablette à commande oculaire avec synthèse vocale
+    exemple_instruction: "Le médicament me donne mal au ventre, c'est normal ?"
   - id: adulte_paralysie_cerebrale
     age: "18-40 ans"
     profil: paralysie cérébrale
     niveau_langage: phrases courtes à moyennes
     moyen_caa: clavier à défilement + synthèse vocale (contacteur)
+    exemple_instruction: "Je voudrais savoir si ce nouveau traitement peut me fatiguer plus que d'habitude."
   - id: adulte_aphasie_avc
     age: "40-65 ans"
     profil: aphasie suite à un AVC
     niveau_langage: télégraphique (mots isolés)
     moyen_caa: tableau alphabétique et pictogrammes
+    exemple_instruction: "Pilule... langue verte... pourquoi ?"
   - id: adulte_sla
     age: "40-65 ans"
     profil: sclérose latérale amyotrophique (SLA)
     niveau_langage: phrases complètes mais lentes à composer
     moyen_caa: commande oculaire + synthèse vocale
+    exemple_instruction: "Est-ce que ce médicament peut expliquer les taches vertes que j'ai vues sur ma langue ?"
   - id: personne_agee_trouble_neuro
     age: "65 ans et plus"
     profil: séquelles d'AVC / trouble neurodégénératif
     niveau_langage: phrases courtes
     moyen_caa: tableau de communication papier et gestes
+    exemple_instruction: "Le médicament me fait voir du vert, c'est normal docteur ?"
 
 themes:
   medical:
     label: Médical
     contexte: Questions et échanges d'un·e patient·e avec un·e spécialiste (médecin, kiné, orthophoniste...).
+    interlocuteur: un·e professionnel·le de santé (médecin, kiné, orthophoniste...)
     contraintes_specifiques:
-      - Jamais de diagnostic, de posologie ou de conseil médical direct.
-      - L'assistant aide à formuler ou clarifier une question à poser au·à la spécialiste,
-        il ne se substitue jamais à un avis médical.
+      - "La réponse simulée du·de la professionnel·le de santé ne doit jamais contenir
+        de diagnostic, de posologie ou de conseil médical direct : elle peut accuser
+        réception, poser une question de clarification, rassurer sans donner
+        d'information clinique factuelle, ou orienter vers un examen ou un rendez-vous
+        de suivi, mais jamais affirmer une cause médicale ni recommander un traitement."
     quota_exemples: 120
     sous_themes:
       - id: effets_secondaires
@@ -69,6 +87,7 @@ themes:
   famille:
     label: Famille
     contexte: Échanges avec les proches (parents, fratrie, enfants, conjoint·e).
+    interlocuteur: un·e proche (parent, fratrie, enfant ou conjoint·e, selon le sous-thème)
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
@@ -84,6 +103,8 @@ themes:
   vie_quotidienne:
     label: Vie quotidienne
     contexte: Situations de la vie courante hors cercle familial et scolaire.
+    interlocuteur: une personne du quotidien (vendeur·se, serveur·se, agent·e de transport,
+      passant·e, selon le sous-thème)
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
@@ -99,6 +120,7 @@ themes:
   ecole:
     label: École
     contexte: "Vie scolaire : classe, enseignant·e, camarades."
+    interlocuteur: un·e enseignant·e ou un·e camarade de classe (selon le sous-thème)
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:

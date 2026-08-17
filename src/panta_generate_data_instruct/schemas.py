@@ -19,6 +19,7 @@ class Persona(BaseModel):
     profil: str
     niveau_langage: str
     moyen_caa: str
+    exemple_instruction: str
 
 
 class SousTheme(BaseModel):
@@ -30,6 +31,7 @@ class Theme(BaseModel):
     id: str
     label: str
     contexte: str
+    interlocuteur: str
     contraintes_specifiques: list[str] = Field(default_factory=list)
     quota_exemples: int
     sous_themes: list[SousTheme]
