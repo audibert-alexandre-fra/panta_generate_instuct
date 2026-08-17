@@ -9,12 +9,13 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import random
 from pathlib import Path
 
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 
-from panta_generate_data_instruct.prompts import build_system_prompt, build_user_prompt
+from panta_generate_data_instruct.prompts import RoleType, build_system_prompt, build_user_prompt
 from panta_generate_data_instruct.schemas import (
     GeneratedPair,
     InstructExample,
@@ -30,6 +31,10 @@ GENERATED_PAIR_SCHEMA = GeneratedPair.model_json_schema()
 Cell = tuple[Theme, SousTheme, Persona]
 
 logger = logging.getLogger(__name__)
+
+
+def _pick_role(sous_theme: SousTheme) -> RoleType:
+    return "B" if random.random() < sous_theme.ratio_connaissance else "A"
 
 
 def build_llm(model: str = DEFAULT_MODEL, enforce_eager: bool = True, **llm_kwargs) -> LLM:
@@ -58,13 +63,14 @@ def generate_examples(
 ) -> list[InstructExample]:
     system_prompt = build_system_prompt(taxonomy.style_guide)
     cell_per_conversation = [cell for cell in _cells(taxonomy) for _ in range(n_per_cell)]
+    role_per_conversation = [_pick_role(sous_theme) for _, sous_theme, _ in cell_per_conversation]
 
     conversations = [
         [
             {"role": "system", "content": system_prompt},
-            {"role": "user", "content": build_user_prompt(theme, sous_theme, persona)},
+            {"role": "user", "content": build_user_prompt(theme, sous_theme, persona, role)},
         ]
-        for theme, sous_theme, persona in cell_per_conversation
+        for (theme, sous_theme, persona), role in zip(cell_per_conversation, role_per_conversation)
     ]
 
     logger.info(
@@ -84,11 +90,11 @@ def generate_examples(
 
     examples = []
     raw_records = []
-    for (theme, sous_theme, persona), conversation, output in zip(
-        cell_per_conversation, conversations, outputs
+    for (theme, sous_theme, persona), role, conversation, output in zip(
+        cell_per_conversation, role_per_conversation, conversations, outputs
     ):
         text = output.outputs[0].text
-        tag = f"{theme.id}/{sous_theme.id}/{persona.id}"
+        tag = f"{theme.id}/{sous_theme.id}/{persona.id}/{role}"
         logger.info("[%s] prompt utilisateur : %s", tag, conversation[1]["content"])
         logger.info("[%s] sortie brute : %s", tag, text)
 
@@ -96,6 +102,7 @@ def generate_examples(
             "theme": theme.id,
             "sous_theme": sous_theme.id,
             "persona_id": persona.id,
+            "type_attendu": role,
             "system_prompt": conversation[0]["content"],
             "user_prompt": conversation[1]["content"],
             "raw_output": text,
@@ -120,6 +127,7 @@ def generate_examples(
                 theme=theme.id,
                 sous_theme=sous_theme.id,
                 persona_id=persona.id,
+                type_attendu=role,
             )
         )
 

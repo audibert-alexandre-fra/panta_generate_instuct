@@ -26,13 +26,12 @@ style_guide:
     - "Ni l'instruction ni l'output ne doivent inventer de détail contextuel précis qui
       n'est fourni nulle part (une date, une heure, l'agencement d'un lieu, un
       numéro, un nom propre...) : le sous-thème décrit une situation générique, pas un
-      scénario avec des faits concrets définis. L'instruction reste une question
-      générale sur ce type de situation (ex. \"Pourquoi je dois rendre les devoirs si
-      tôt ?\" plutôt que \"Pourquoi les devoirs sont-ils à rendre mercredi ?\"), et
-      l'output reste une réponse de connaissance générale (un principe, une
-      explication, une façon de faire, une prochaine étape) plutôt qu'une affirmation
-      factuelle inventée sur un contexte non spécifié (interdit par ex. : \"les
-      devoirs sont à rendre mercredi parce que...\", \"les toilettes sont à l'entrée du
+      scénario avec des faits concrets définis. L'instruction reste une question ou
+      une demande générale sur ce type de situation (ex. \"Pourquoi je dois rendre les
+      devoirs si tôt ?\" plutôt que \"Pourquoi les devoirs sont-ils à rendre
+      mercredi ?\"), et l'output ne doit jamais affirmer comme un fait un contenu ou
+      un détail que l'assistant n'a reçu nulle part (interdit par ex. : \"les devoirs
+      sont à rendre mercredi parce que...\", \"les toilettes sont à l'entrée du
       magasin, à gauche\")."
 
 personas:
@@ -41,36 +40,72 @@ personas:
     profil: trouble du spectre autistique
     niveau_langage: télégraphique (mots-clés)
     moyen_caa: tableau de pictogrammes
-    exemple_instruction: "Pourquoi pilule fait langue verte, docteur ?"
+    longueur_max_mots: 6
+    grammaire: "verbes seulement à l'infinitif ou au présent 3e personne (ex. \"fait\",
+      \"veut\"), pas d'autre temps ni personne, pas de mots de liaison (articles,
+      prépositions)"
+    registre_lexical: vocabulaire très concret, mots courts et familiers, aucune abstraction
+    bruit_caracteristique: mots-clés juxtaposés (pictogrammes sélectionnés un par un),
+      articles et prépositions absents
+    exemple_instruction: "Pilule fait langue verte, pourquoi ?"
   - id: adolescent_synthese_vocale
     age: "11-17 ans"
     profil: infirmité motrice cérébrale (IMC)
     niveau_langage: phrases courtes
     moyen_caa: tablette à commande oculaire avec synthèse vocale
+    longueur_max_mots: 12
+    grammaire: phrases simples sujet-verbe-complément, conjugaison correcte au présent,
+      ponctuation simple
+    registre_lexical: vocabulaire courant d'adolescent·e, familier mais correct
+    bruit_caracteristique: quasiment aucun bruit (saisie précise par commande oculaire) ;
+      phrases courtes surtout par fatigue de saisie, pas par erreur de forme
     exemple_instruction: "Le médicament me donne mal au ventre, c'est normal ?"
   - id: adulte_paralysie_cerebrale
     age: "18-40 ans"
     profil: paralysie cérébrale
     niveau_langage: phrases courtes à moyennes
     moyen_caa: clavier à défilement + synthèse vocale (contacteur)
+    longueur_max_mots: 18
+    grammaire: phrases complètes avec subordonnées simples possibles, conjugaison correcte
+    registre_lexical: vocabulaire adulte courant
+    bruit_caracteristique: aucun bruit particulier ; longueur modérée car la saisie au
+      défilement est lente, mais la forme finale est propre
     exemple_instruction: "Je voudrais savoir si ce nouveau traitement peut me fatiguer plus que d'habitude."
   - id: adulte_aphasie_avc
     age: "40-65 ans"
     profil: aphasie suite à un AVC
     niveau_langage: télégraphique (mots isolés)
     moyen_caa: tableau alphabétique et pictogrammes
+    longueur_max_mots: 6
+    grammaire: "mots isolés ou groupes de 2-3 mots, verbes rarement conjugués, articles
+      et prépositions généralement absents mais un mot de liaison occasionnel est
+      possible (aphasie agrammatique réelle), jamais de subordonnée"
+    registre_lexical: vocabulaire concret du quotidien, mots familiers uniquement
+    bruit_caracteristique: hésitations et reprises, groupes de mots séparés par une
+      virgule plutôt qu'une phrase liée
     exemple_instruction: "Depuis la pilule, langue verte, pourquoi ?"
   - id: adulte_sla
     age: "40-65 ans"
     profil: sclérose latérale amyotrophique (SLA)
     niveau_langage: phrases complètes mais lentes à composer
     moyen_caa: commande oculaire + synthèse vocale
+    longueur_max_mots: 20
+    grammaire: phrases complètes et grammaticalement correctes, subordonnées possibles
+    registre_lexical: vocabulaire adulte riche, orthographe soignée
+    bruit_caracteristique: aucun bruit ; phrases propres et bien formées malgré la
+      lenteur de composition, le dispositif attend la fin de la saisie
     exemple_instruction: "Est-ce que ce médicament peut expliquer les taches vertes que j'ai vues sur ma langue ?"
   - id: personne_agee_trouble_neuro
     age: "65 ans et plus"
     profil: séquelles d'AVC / trouble neurodégénératif
     niveau_langage: phrases courtes
     moyen_caa: tableau de communication papier et gestes
+    longueur_max_mots: 10
+    grammaire: phrases courtes mais correctes, conjugaison simple au présent, peu de
+      subordonnées
+    registre_lexical: vocabulaire courant, parfois quelques tournures un peu datées
+    bruit_caracteristique: quelques mots de liaison omis par fatigue de pointage, mais
+      structure de phrase toujours reconnaissable
     exemple_instruction: "Le médicament me fait voir du vert, c'est normal docteur ?"
 
 themes:
@@ -79,11 +114,15 @@ themes:
     contexte: Questions et échanges d'un·e patient·e avec un·e spécialiste (médecin, kiné, orthophoniste...).
     interlocuteur: un·e professionnel·le de santé (médecin, kiné, orthophoniste...)
     contraintes_specifiques:
-      - "La réponse simulée du·de la professionnel·le de santé ne doit jamais contenir
-        de diagnostic, de posologie ou de conseil médical direct : elle peut accuser
-        réception, poser une question de clarification, rassurer sans donner
-        d'information clinique factuelle, ou orienter vers un examen ou un rendez-vous
-        de suivi, mais jamais affirmer une cause médicale ni recommander un traitement."
+      - "Rôle A (aide à communiquer avec le·la professionnel·le de santé) : l'assistant
+        n'est jamais présent au rendez-vous et ne connaît jamais l'état de santé réel
+        du persona ; il aide seulement à formuler ou clarifier la question à poser,
+        sans jamais donner lui-même de diagnostic, de posologie ou de conseil médical
+        direct."
+      - "Rôle B (question de connaissance générale, sous-thème clarification_traitement
+        uniquement) : l'assistant peut expliquer factuellement ce qu'est un terme, un
+        examen ou un type de traitement courant (ex. \"C'est quoi une prise de sang ?\"),
+        mais jamais donner un avis sur le cas personnel du persona ni un diagnostic."
     quota_exemples: 120
     sous_themes:
       - id: effets_secondaires
@@ -92,6 +131,7 @@ themes:
         description: Décrire une douleur ou une gêne physique.
       - id: clarification_traitement
         description: Demander une clarification sur un traitement ou un examen.
+        ratio_connaissance: 0.3
       - id: preparation_rdv
         description: Préparer les questions à poser avant un rendez-vous.
 
@@ -137,6 +177,7 @@ themes:
     sous_themes:
       - id: question_enseignant
         description: Poser une question à un·e enseignant·e.
+        ratio_connaissance: 0.7
       - id: aide_camarade
         description: Demander de l'aide à un·e camarade.
       - id: activite_groupe

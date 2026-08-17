@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 from pathlib import Path
+from typing import Literal
 
 import yaml
 from pydantic import BaseModel, Field
@@ -14,17 +15,28 @@ class StyleGuide(BaseModel):
 
 
 class Persona(BaseModel):
+    """Profil linguistique fixe d'un persona, appliqué de façon systématique (pas
+    aléatoire) à toutes les instructions générées pour ce persona."""
+
     id: str
     age: str
     profil: str
     niveau_langage: str
     moyen_caa: str
+    longueur_max_mots: int
+    grammaire: str
+    registre_lexical: str
+    bruit_caracteristique: str
     exemple_instruction: str
 
 
 class SousTheme(BaseModel):
     id: str
     description: str
+    # Proportion (0-1) d'exemples de type B (question de connaissance générale,
+    # autosuffisante) à générer pour ce sous-thème ; le reste est du type A (aide à
+    # communiquer avec le tiers réel du thème). Cf. build_role_bloc dans prompts.py.
+    ratio_connaissance: float = 0.0
 
 
 class Theme(BaseModel):
@@ -76,3 +88,7 @@ class InstructExample(BaseModel):
     theme: str
     sous_theme: str
     persona_id: str
+    # A : l'assistant aide à formuler/clarifier un message vers le tiers réel du thème.
+    # B : l'assistant répond directement à une question de connaissance générale
+    # autosuffisante. Cf. build_role_bloc dans prompts.py.
+    type_attendu: Literal["A", "B"]
