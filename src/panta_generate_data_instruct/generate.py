@@ -186,6 +186,23 @@ def main() -> None:
     parser.add_argument("--temperature", type=float, default=0.9)
     parser.add_argument("--max-tokens", type=int, default=512)
     parser.add_argument(
+        "--max-model-len",
+        type=int,
+        default=4096,
+        help=(
+            "Longueur de contexte du moteur vLLM (KV cache). Nos prompts et sorties "
+            "tiennent largement dans quelques milliers de tokens ; réduire cette "
+            "valeur (au lieu de la longueur max du modèle, ex. 40960 pour Qwen3-32B) "
+            "évite les erreurs 'KV cache memory' sur GPU à mémoire limitée."
+        ),
+    )
+    parser.add_argument(
+        "--gpu-memory-utilization",
+        type=float,
+        default=None,
+        help="Fraction de la mémoire GPU réservée par vLLM (défaut vLLM : 0.9).",
+    )
+    parser.add_argument(
         "--log-level",
         default="INFO",
         choices=["DEBUG", "INFO", "WARNING", "ERROR"],
@@ -195,7 +212,10 @@ def main() -> None:
     logging.basicConfig(level=args.log_level, format="%(asctime)s [%(levelname)s] %(message)s")
 
     taxonomy = Taxonomy.from_yaml(args.taxonomy)
-    llm = build_llm(args.model, enforce_eager=args.enforce_eager)
+    llm_kwargs = {"max_model_len": args.max_model_len}
+    if args.gpu_memory_utilization is not None:
+        llm_kwargs["gpu_memory_utilization"] = args.gpu_memory_utilization
+    llm = build_llm(args.model, enforce_eager=args.enforce_eager, **llm_kwargs)
     examples = generate_examples(
         llm,
         taxonomy,
