@@ -48,7 +48,7 @@ personas:
     profil: aphasie suite à un AVC
     niveau_langage: télégraphique (mots isolés)
     moyen_caa: tableau alphabétique et pictogrammes
-    exemple_instruction: "Pilule... langue verte... pourquoi ?"
+    exemple_instruction: "Depuis la pilule, langue verte, pourquoi ?"
   - id: adulte_sla
     age: "40-65 ans"
     profil: sclérose latérale amyotrophique (SLA)
@@ -105,7 +105,14 @@ themes:
     contexte: Situations de la vie courante hors cercle familial et scolaire.
     interlocuteur: une personne du quotidien (vendeur·se, serveur·se, agent·e de transport,
       passant·e, selon le sous-thème)
-    contraintes_specifiques: []
+    contraintes_specifiques:
+      - "Le lieu exact (quel magasin, quel restaurant, quel transport...) n'est jamais
+        précisé ni connu à l'avance : l'instruction et la réponse doivent donc rester
+        générales et ne jamais inventer de détail précis et non vérifiable sur le
+        décor ou l'agencement des lieux (interdit par ex. : \"à l'entrée du magasin, à
+        gauche\", \"au rayon 3\", \"au 2e étage\"). Préférer une réponse générique et
+        plausible quel que soit le lieu réel (ex. \"Je vais vous montrer où elles se
+        trouvent\", \"Suivez-moi, je vous accompagne\")."
     quota_exemples: 120
     sous_themes:
       - id: demande_lieu_public
