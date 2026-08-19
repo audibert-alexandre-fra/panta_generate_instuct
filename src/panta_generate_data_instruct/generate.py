@@ -2,6 +2,20 @@
 
 Modèle par défaut : un modèle léger (Qwen 8B) pour les tests. Une fois le pipeline
 validé, passer un modèle plus grand (ex. Qwen 32B) via --model.
+
+Procédure par cellule (thème x sous-thème x persona compatible, cf.
+SousTheme.poids_personas) :
+1. "instruction" et "output" sont générés en deux appels séparés (build_instruction_prompt
+   / build_output_prompt) : un appel unique tend à lisser le bruit caractéristique du
+   persona dans l'instruction.
+2. Les instructions sont surgénérées (parametres_generation.surgeneration_min/max) en
+   plusieurs vagues ; chaque vague reçoit la liste des instructions déjà retenues pour
+   la cellule (consigne : ne pas y ressembler), puis un dédoublonnage sémantique
+   (dedup.py) réduit le pool avant la vague suivante.
+3. Le pool final est réduit au quota de la cellule (dérivé du poids de compatibilité
+   persona x sous-thème).
+4. Un dernier dédoublonnage sémantique s'applique à l'intérieur de chaque sous-thème,
+   toutes personas confondues.
 """
 
 from __future__ import annotations
@@ -9,15 +23,24 @@ from __future__ import annotations
 import argparse
 import json
 import logging
+import math
 import random
+from dataclasses import dataclass
 from pathlib import Path
 
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 
-from panta_generate_data_instruct.prompts import RoleType, build_system_prompt, build_user_prompt
+from panta_generate_data_instruct.dedup import deduplicate
+from panta_generate_data_instruct.prompts import (
+    RoleType,
+    build_instruction_prompt,
+    build_output_prompt,
+    build_system_prompt,
+)
 from panta_generate_data_instruct.schemas import (
-    GeneratedPair,
+    GeneratedInstruction,
+    GeneratedOutput,
     InstructExample,
     Persona,
     SousTheme,
@@ -26,9 +49,9 @@ from panta_generate_data_instruct.schemas import (
 )
 
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
-GENERATED_PAIR_SCHEMA = GeneratedPair.model_json_schema()
-
-Cell = tuple[Theme, SousTheme, Persona]
+N_VAGUES = 3
+INSTRUCTION_SCHEMA = GeneratedInstruction.model_json_schema()
+OUTPUT_SCHEMA = GeneratedOutput.model_json_schema()
 
 logger = logging.getLogger(__name__)
 
@@ -44,13 +67,263 @@ def build_llm(model: str = DEFAULT_MODEL, enforce_eager: bool = True, **llm_kwar
     return LLM(model=model, enforce_eager=enforce_eager, **llm_kwargs)
 
 
-def _cells(taxonomy: Taxonomy) -> list[Cell]:
-    return [
-        (theme, sous_theme, persona)
-        for theme in taxonomy.themes
-        for sous_theme in theme.sous_themes
-        for persona in taxonomy.personas
-    ]
+@dataclass
+class CellPlan:
+    theme: Theme
+    sous_theme: SousTheme
+    persona: Persona
+    target: int
+    overgen_count: int
+
+
+@dataclass
+class Candidate:
+    plan: CellPlan
+    role: RoleType
+    intention: str
+    exemple_instruction: str
+    instruction: str | None = None
+
+
+def _plan_cells(
+    taxonomy: Taxonomy,
+    n_per_cell: int,
+    surgeneration_min: int,
+    surgeneration_max: int,
+) -> list[CellPlan]:
+    """Calcule, pour chaque cellule compatible (poids > 0), le nombre d'exemples cible
+    et le nombre de candidats à surgénérer. Le volume cible par sous-thème (n_per_cell
+    x nombre de personas) est redistribué entre les personas compatibles au prorata de
+    leur poids ; les personas à poids 0 (ex. personas adultes pour le thème école) sont
+    exclus et leur part reportée sur les personas restants."""
+    plans: list[CellPlan] = []
+    n_personas = len(taxonomy.personas)
+    for theme in taxonomy.themes:
+        for sous_theme in theme.sous_themes:
+            poids = {p.id: taxonomy.poids_persona(sous_theme, p) for p in taxonomy.personas}
+            total_weight = sum(w for w in poids.values() if w > 0)
+            if total_weight <= 0:
+                logger.warning(
+                    "%s/%s : aucun persona compatible, cellule ignorée", theme.id, sous_theme.id
+                )
+                continue
+            total_target = n_per_cell * n_personas
+            for persona in taxonomy.personas:
+                w = poids[persona.id]
+                if w <= 0:
+                    continue
+                target = round(total_target * w / total_weight)
+                if target <= 0:
+                    continue
+                overgen_count = max(surgeneration_min, min(surgeneration_max, target * 3))
+                plans.append(CellPlan(theme, sous_theme, persona, target, overgen_count))
+    return plans
+
+
+def _generate_instruction_pools(
+    llm: LLM,
+    taxonomy: Taxonomy,
+    plans: list[CellPlan],
+    temperature: float,
+    max_tokens: int,
+) -> list[Candidate]:
+    system_prompt = build_system_prompt(taxonomy.style_guide)
+    seuil = taxonomy.parametres_generation.dedup_seuil_cosinus
+    pools: dict[int, list[Candidate]] = {id(plan): [] for plan in plans}
+    wave_size = {id(plan): max(1, math.ceil(plan.overgen_count / N_VAGUES)) for plan in plans}
+
+    for vague in range(N_VAGUES):
+        active_plans = [p for p in plans if len(pools[id(p)]) < p.overgen_count]
+        if not active_plans:
+            break
+
+        conversations = []
+        wave_candidates: list[Candidate] = []
+        for plan in active_plans:
+            deja_retenues = [c.instruction for c in pools[id(plan)]]
+            for _ in range(wave_size[id(plan)]):
+                role = _pick_role(plan.sous_theme)
+                intention = (
+                    random.choice(plan.sous_theme.intentions)
+                    if plan.sous_theme.intentions
+                    else plan.sous_theme.description
+                )
+                exemple_instruction = random.choice(plan.persona.exemples_instruction)
+                prompt = build_instruction_prompt(
+                    plan.theme,
+                    plan.sous_theme,
+                    plan.persona,
+                    role,
+                    intention,
+                    exemple_instruction,
+                    deja_retenues,
+                )
+                conversations.append(
+                    [
+                        {"role": "system", "content": system_prompt},
+                        {"role": "user", "content": prompt},
+                    ]
+                )
+                wave_candidates.append(
+                    Candidate(
+                        plan=plan,
+                        role=role,
+                        intention=intention,
+                        exemple_instruction=exemple_instruction,
+                    )
+                )
+
+        logger.info("Vague %d/%d instructions : %d appels", vague + 1, N_VAGUES, len(conversations))
+        sampling_params = SamplingParams(
+            temperature=temperature,
+            max_tokens=max_tokens,
+            structured_outputs=StructuredOutputsParams(json=INSTRUCTION_SCHEMA),
+        )
+        outputs = llm.chat(conversations, sampling_params=sampling_params)
+
+        for candidate, output in zip(wave_candidates, outputs):
+            text = output.outputs[0].text
+            tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.role}"
+            try:
+                parsed = GeneratedInstruction.model_validate_json(text)
+            except ValueError as exc:
+                logger.warning("[%s] instruction invalide, candidat ignoré : %s", tag, exc)
+                continue
+            candidate.instruction = parsed.instruction
+
+        by_plan: dict[int, list[Candidate]] = {}
+        for candidate in wave_candidates:
+            if candidate.instruction is not None:
+                by_plan.setdefault(id(candidate.plan), []).append(candidate)
+
+        for plan in active_plans:
+            combined = pools[id(plan)] + by_plan.get(id(plan), [])
+            texts = [c.instruction for c in combined]
+            keep_idx = deduplicate(texts, threshold=seuil)
+            pools[id(plan)] = [combined[i] for i in keep_idx]
+
+    final: list[Candidate] = []
+    for plan in plans:
+        kept = pools[id(plan)][: plan.target]
+        if len(kept) < plan.target:
+            logger.warning(
+                "%s/%s/%s : %d/%d instructions retenues après surgénération + dédoublonnage",
+                plan.theme.id,
+                plan.sous_theme.id,
+                plan.persona.id,
+                len(kept),
+                plan.target,
+            )
+        final.extend(kept)
+    return final
+
+
+def _generate_outputs(
+    llm: LLM,
+    taxonomy: Taxonomy,
+    candidates: list[Candidate],
+    temperature: float,
+    max_tokens: int,
+) -> tuple[list[InstructExample], list[dict]]:
+    system_prompt = build_system_prompt(taxonomy.style_guide)
+    clarification_ratio = taxonomy.parametres_generation.clarification_ratio_role_a
+
+    conversations = []
+    demandes_clarification: list[bool | None] = []
+    for candidate in candidates:
+        demande_clarification = candidate.role == "A" and random.random() < clarification_ratio
+        demandes_clarification.append(demande_clarification if candidate.role == "A" else None)
+        prompt = build_output_prompt(
+            candidate.plan.theme,
+            candidate.plan.sous_theme,
+            candidate.plan.persona,
+            candidate.role,
+            candidate.instruction,
+            candidate.exemple_instruction,
+            demande_clarification=demande_clarification,
+        )
+        conversations.append(
+            [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": prompt},
+            ]
+        )
+
+    logger.info("Génération des outputs : %d appels", len(conversations))
+    sampling_params = SamplingParams(
+        temperature=temperature,
+        max_tokens=max_tokens,
+        structured_outputs=StructuredOutputsParams(json=OUTPUT_SCHEMA),
+    )
+    outputs = llm.chat(conversations, sampling_params=sampling_params)
+
+    examples: list[InstructExample] = []
+    raw_records: list[dict] = []
+    for candidate, demande_clarification, conversation, output in zip(
+        candidates, demandes_clarification, conversations, outputs
+    ):
+        text = output.outputs[0].text
+        tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.role}"
+        logger.info("[%s] instruction : %s", tag, candidate.instruction)
+        logger.info("[%s] sortie brute (output) : %s", tag, text)
+
+        record = {
+            "theme": candidate.plan.theme.id,
+            "sous_theme": candidate.plan.sous_theme.id,
+            "persona_id": candidate.plan.persona.id,
+            "type_attendu": candidate.role,
+            "intention": candidate.intention,
+            "demande_clarification": demande_clarification,
+            "instruction": candidate.instruction,
+            "output_prompt": conversation[1]["content"],
+            "raw_output": text,
+        }
+
+        try:
+            parsed = GeneratedOutput.model_validate_json(text)
+        except ValueError as exc:
+            logger.error("[%s] output invalide, exemple ignoré : %s", tag, exc)
+            record["error"] = str(exc)
+            raw_records.append(record)
+            continue
+
+        record["output"] = parsed.output
+        raw_records.append(record)
+
+        examples.append(
+            InstructExample(
+                instruction=candidate.instruction,
+                output=parsed.output,
+                theme=candidate.plan.theme.id,
+                sous_theme=candidate.plan.sous_theme.id,
+                persona_id=candidate.plan.persona.id,
+                type_attendu=candidate.role,
+                intention=candidate.intention,
+                demande_clarification=demande_clarification,
+            )
+        )
+
+    logger.info("%d/%d exemples valides (output)", len(examples), len(candidates))
+    return examples, raw_records
+
+
+def _dedup_final_par_sous_theme(examples: list[InstructExample], threshold: float) -> list[InstructExample]:
+    by_sous_theme: dict[str, list[InstructExample]] = {}
+    for example in examples:
+        by_sous_theme.setdefault(example.sous_theme, []).append(example)
+
+    kept: list[InstructExample] = []
+    for sous_theme_id, group in by_sous_theme.items():
+        texts = [example.instruction for example in group]
+        keep_idx = deduplicate(texts, threshold=threshold)
+        if len(keep_idx) < len(group):
+            logger.info(
+                "Dédoublonnage final [%s] : %d exemples retirés (quasi-doublons)",
+                sous_theme_id,
+                len(group) - len(keep_idx),
+            )
+        kept.extend(group[i] for i in keep_idx)
+    return kept
 
 
 def generate_examples(
@@ -60,78 +333,27 @@ def generate_examples(
     temperature: float = 0.9,
     max_tokens: int = 512,
     raw_log_path: Path | None = None,
+    surgeneration_min: int | None = None,
+    surgeneration_max: int | None = None,
 ) -> list[InstructExample]:
-    system_prompt = build_system_prompt(taxonomy.style_guide)
-    cell_per_conversation = [cell for cell in _cells(taxonomy) for _ in range(n_per_cell)]
-    role_per_conversation = [_pick_role(sous_theme) for _, sous_theme, _ in cell_per_conversation]
+    params = taxonomy.parametres_generation
+    surgeneration_min = surgeneration_min if surgeneration_min is not None else params.surgeneration_min
+    surgeneration_max = surgeneration_max if surgeneration_max is not None else params.surgeneration_max
 
-    conversations = [
-        [
-            {"role": "system", "content": system_prompt},
-            {"role": "user", "content": build_user_prompt(theme, sous_theme, persona, role)},
-        ]
-        for (theme, sous_theme, persona), role in zip(cell_per_conversation, role_per_conversation)
-    ]
-
+    plans = _plan_cells(taxonomy, n_per_cell, surgeneration_min, surgeneration_max)
     logger.info(
-        "Lancement de la génération : %d exemples (%d cellules x %d)",
-        len(conversations),
-        len(cell_per_conversation) // max(n_per_cell, 1),
-        n_per_cell,
+        "Cellules compatibles : %d, exemples cible : %d",
+        len(plans),
+        sum(plan.target for plan in plans),
     )
 
-    sampling_params = SamplingParams(
-        temperature=temperature,
-        max_tokens=max_tokens,
-        structured_outputs=StructuredOutputsParams(json=GENERATED_PAIR_SCHEMA),
-    )
+    candidates = _generate_instruction_pools(llm, taxonomy, plans, temperature, max_tokens)
+    logger.info("%d instructions retenues après surgénération + dédoublonnage", len(candidates))
 
-    outputs = llm.chat(conversations, sampling_params=sampling_params)
+    examples, raw_records = _generate_outputs(llm, taxonomy, candidates, temperature, max_tokens)
 
-    examples = []
-    raw_records = []
-    for (theme, sous_theme, persona), role, conversation, output in zip(
-        cell_per_conversation, role_per_conversation, conversations, outputs
-    ):
-        text = output.outputs[0].text
-        tag = f"{theme.id}/{sous_theme.id}/{persona.id}/{role}"
-        logger.info("[%s] prompt utilisateur : %s", tag, conversation[1]["content"])
-        logger.info("[%s] sortie brute : %s", tag, text)
-
-        record = {
-            "theme": theme.id,
-            "sous_theme": sous_theme.id,
-            "persona_id": persona.id,
-            "type_attendu": role,
-            "system_prompt": conversation[0]["content"],
-            "user_prompt": conversation[1]["content"],
-            "raw_output": text,
-        }
-
-        try:
-            pair = GeneratedPair.model_validate_json(text)
-        except ValueError as exc:
-            logger.error("[%s] sortie invalide, exemple ignoré : %s", tag, exc)
-            record["error"] = str(exc)
-            raw_records.append(record)
-            continue
-
-        record["instruction"] = pair.instruction
-        record["output"] = pair.output
-        raw_records.append(record)
-
-        examples.append(
-            InstructExample(
-                instruction=pair.instruction,
-                output=pair.output,
-                theme=theme.id,
-                sous_theme=sous_theme.id,
-                persona_id=persona.id,
-                type_attendu=role,
-            )
-        )
-
-    logger.info("%d/%d exemples valides", len(examples), len(conversations))
+    examples = _dedup_final_par_sous_theme(examples, params.dedup_seuil_cosinus)
+    logger.info("%d exemples après dédoublonnage final par sous-thème", len(examples))
 
     if raw_log_path is not None:
         save_raw_log(raw_records, raw_log_path)
@@ -174,14 +396,26 @@ def main() -> None:
         "--n-per-cell",
         type=int,
         default=5,
-        help="Exemples générés par combinaison thème x sous-thème x persona.",
+        help="Exemples cible par combinaison thème x sous-thème, moyenné sur les personas compatibles.",
+    )
+    parser.add_argument(
+        "--surgeneration-min",
+        type=int,
+        default=None,
+        help="Surcharge parametres_generation.surgeneration_min de la taxonomie.",
+    )
+    parser.add_argument(
+        "--surgeneration-max",
+        type=int,
+        default=None,
+        help="Surcharge parametres_generation.surgeneration_max de la taxonomie.",
     )
     parser.add_argument("--output", type=Path, default=Path("data/raw/generated.jsonl"))
     parser.add_argument(
         "--raw-log",
         type=Path,
         default=Path("data/raw/generated_raw_log.json"),
-        help="Fichier JSON de debug : prompts + sorties brutes de chaque appel.",
+        help="Fichier JSON de debug : prompts + sorties brutes de chaque appel output.",
     )
     parser.add_argument("--temperature", type=float, default=0.9)
     parser.add_argument("--max-tokens", type=int, default=512)
@@ -223,6 +457,8 @@ def main() -> None:
         args.temperature,
         args.max_tokens,
         raw_log_path=args.raw_log,
+        surgeneration_min=args.surgeneration_min,
+        surgeneration_max=args.surgeneration_max,
     )
     save_jsonl(examples, args.output)
     print(f"{len(examples)} exemples écrits dans {args.output}")

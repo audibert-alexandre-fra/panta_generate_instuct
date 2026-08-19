@@ -1,7 +1,23 @@
 # Taxonomie du pilote : thèmes, sous-thèmes, personas et quotas.
 # Sert de graine à la génération (self-instruct) dans generate.py.
 #
-# Volume cible : 4 thèmes x 4 sous-thèmes x 6 personas x 5 exemples = 480 exemples.
+# Volume cible : 4 thèmes x 4 sous-thèmes x 6 personas x 5 exemples = 480 exemples,
+# redistribué par sous-thème selon la matrice de compatibilité `poids_personas` (les
+# combinaisons persona x sous-thème non plausibles ont un poids de 0 et leur part est
+# reportée sur les personas compatibles du même sous-thème).
+
+parametres_generation:
+  # Part des exemples de rôle A où l'assistant pose une question de clarification
+  # plutôt que de proposer directement 2-3 formulations candidates (comportement par
+  # défaut du rôle A, cf. style_guide.regles et prompts.py).
+  clarification_ratio_role_a: 0.2
+  # Seuil de similarité cosinus (embeddings sentence-transformers) au-delà duquel deux
+  # instructions du même sous-thème sont considérées comme des quasi-doublons.
+  dedup_seuil_cosinus: 0.85
+  # Bornes du nombre de candidats surgénérés par cellule (thème x sous-thème x
+  # persona) avant dédoublonnage et réduction au quota.
+  surgeneration_min: 12
+  surgeneration_max: 15
 
 style_guide:
   registre: FALC (Facile à Lire et à Comprendre)
@@ -33,6 +49,30 @@ style_guide:
       un détail que l'assistant n'a reçu nulle part (interdit par ex. : \"les devoirs
       sont à rendre mercredi parce que...\", \"les toilettes sont à l'entrée du
       magasin, à gauche\")."
+    - "Auto-suffisance : une instruction n'est valide que si l'assistant peut y
+      répondre sans accès à un référent qu'il n'a jamais reçu (\"cet exercice\", \"la
+      leçon\", \"ce document\", \"cette leçon\"...). Privilégier les questions
+      explicatives : pourquoi (cause), comment (procédure), c'est quoi (définition),
+      est-ce que c'est normal (norme), qu'est-ce qui se passe si (conséquence),
+      combien de temps (durée). Interdit : tout démonstratif ou défini renvoyant à un
+      objet non introduit dans l'instruction elle-même. Exemple interdit : \"Comprends
+      pas exercice, peux aider ?\" — exemple valide : \"Comment dire au professeur que
+      c'est trop vite ?\"."
+    - "Pour le rôle A, l'assistant propose par défaut directement 2 ou 3 formulations
+      candidates que le persona pourrait dire à son interlocuteur ; il ne pose une
+      question de clarification que si la situation est réellement ambiguë (cas
+      minoritaire, cf. parametres_generation.clarification_ratio_role_a). \"Tu veux
+      que je t'aide à... ?\" ne doit jamais être le patron systématique des outputs de
+      rôle A."
+    - "L'output ne recopie jamais l'instruction en préambule (interdit par ex. de
+      commencer par reformuler ce que le persona vient de dire avant de répondre)."
+    - "L'output n'utilise jamais l'impératif pour renvoyer la tâche à l'utilisateur
+      (interdit par ex. \"Demande au professeur toi-même\", \"Explique-lui ce que tu
+      ressens\") : l'assistant agit lui-même en formulant une proposition, jamais en
+      délégant la tâche au persona."
+    - "Le registre d'adresse de l'assistant envers le persona (tu/vous) respecte
+      strictement le registre_adresse déclaré pour ce persona, y compris à l'intérieur
+      des formulations candidates proposées."
 
 personas:
   - id: enfant_pictogrammes
@@ -47,7 +87,13 @@ personas:
     registre_lexical: vocabulaire très concret, mots courts et familiers, aucune abstraction
     bruit_caracteristique: mots-clés juxtaposés (pictogrammes sélectionnés un par un),
       articles et prépositions absents
-    exemple_instruction: "Pilule fait langue verte, pourquoi ?"
+    registre_adresse: tu
+    exemples_instruction:
+      - "Pilule fait langue verte, pourquoi ?"
+      - "Ventre fait mal, pourquoi ?"
+      - "Maman fâchée, pourquoi ?"
+      - "Veut jouer dehors, possible ?"
+      - "Chaussure fait mal pied, pourquoi ?"
   - id: adolescent_synthese_vocale
     age: "11-17 ans"
     profil: infirmité motrice cérébrale (IMC)
@@ -59,7 +105,13 @@ personas:
     registre_lexical: vocabulaire courant d'adolescent·e, familier mais correct
     bruit_caracteristique: quasiment aucun bruit (saisie précise par commande oculaire) ;
       phrases courtes surtout par fatigue de saisie, pas par erreur de forme
-    exemple_instruction: "Le médicament me donne mal au ventre, c'est normal ?"
+    registre_adresse: tu
+    exemples_instruction:
+      - "Le médicament me donne mal au ventre, c'est normal ?"
+      - "Je suis crevé, on peut faire une pause ?"
+      - "J'ai pas compris la consigne, tu peux m'aider ?"
+      - "Le bus est en retard, je fais quoi ?"
+      - "Je préfère pas y aller, c'est possible de dire non ?"
   - id: adulte_paralysie_cerebrale
     age: "18-40 ans"
     profil: paralysie cérébrale
@@ -70,7 +122,13 @@ personas:
     registre_lexical: vocabulaire adulte courant
     bruit_caracteristique: aucun bruit particulier ; longueur modérée car la saisie au
       défilement est lente, mais la forme finale est propre
-    exemple_instruction: "Je voudrais savoir si ce nouveau traitement peut me fatiguer plus que d'habitude."
+    registre_adresse: vous
+    exemples_instruction:
+      - "Je voudrais savoir si ce nouveau traitement peut me fatiguer plus que d'habitude."
+      - "Je me demande pourquoi cette démarche administrative prend autant de temps."
+      - "J'aimerais dire à mes parents que j'ai besoin d'un peu plus de temps seul."
+      - "Je voudrais comprendre pourquoi cet examen est nécessaire avant de l'accepter."
+      - "Je souhaiterais savoir si je peux demander un délai supplémentaire pour cette tâche."
   - id: adulte_aphasie_avc
     age: "40-65 ans"
     profil: aphasie suite à un AVC
@@ -83,7 +141,13 @@ personas:
     registre_lexical: vocabulaire concret du quotidien, mots familiers uniquement
     bruit_caracteristique: hésitations et reprises, groupes de mots séparés par une
       virgule plutôt qu'une phrase liée
-    exemple_instruction: "Depuis la pilule, langue verte, pourquoi ?"
+    registre_adresse: vous
+    exemples_instruction:
+      - "Depuis la pilule, langue verte, pourquoi ?"
+      - "Bras, douleur, depuis hier."
+      - "Fatigue, beaucoup, pourquoi ça ?"
+      - "Envie, sortir, dehors, possible ?"
+      - "Repas, trop tard, pourquoi ?"
   - id: adulte_sla
     age: "40-65 ans"
     profil: sclérose latérale amyotrophique (SLA)
@@ -94,7 +158,13 @@ personas:
     registre_lexical: vocabulaire adulte riche, orthographe soignée
     bruit_caracteristique: aucun bruit ; phrases propres et bien formées malgré la
       lenteur de composition, le dispositif attend la fin de la saisie
-    exemple_instruction: "Est-ce que ce médicament peut expliquer les taches vertes que j'ai vues sur ma langue ?"
+    registre_adresse: vous
+    exemples_instruction:
+      - "Est-ce que ce médicament peut expliquer les taches vertes que j'ai vues sur ma langue ?"
+      - "Je me demande si la fatigue que je ressens en ce moment est liée à mon traitement."
+      - "J'aimerais expliquer à ma famille que j'ai besoin de plus de temps pour répondre."
+      - "Pourriez-vous m'aider à comprendre à quoi sert exactement cet examen avant que je l'accepte ?"
+      - "Je voudrais savoir si je peux demander qu'on m'explique une consigne plus lentement."
   - id: personne_agee_trouble_neuro
     age: "65 ans et plus"
     profil: séquelles d'AVC / trouble neurodégénératif
@@ -106,81 +176,277 @@ personas:
     registre_lexical: vocabulaire courant, parfois quelques tournures un peu datées
     bruit_caracteristique: quelques mots de liaison omis par fatigue de pointage, mais
       structure de phrase toujours reconnaissable
-    exemple_instruction: "Le médicament me fait voir du vert, c'est normal docteur ?"
+    registre_adresse: vous
+    exemples_instruction:
+      - "Le médicament me fait voir du vert, c'est normal docteur ?"
+      - "J'ai du mal à me souvenir, c'est grave ?"
+      - "Je voudrais un peu de calme, c'est possible ?"
+      - "Pourquoi je dois attendre autant, ici ?"
+      - "J'aimerais qu'on m'aide pour cette démarche."
 
 themes:
   medical:
     label: Médical
     contexte: Questions et échanges d'un·e patient·e avec un·e spécialiste (médecin, kiné, orthophoniste...).
-    interlocuteur: un·e professionnel·le de santé (médecin, kiné, orthophoniste...)
+    interlocuteur_par_persona:
+      enfant_pictogrammes: ton docteur
+      adolescent_synthese_vocale: ton médecin
+      adulte_paralysie_cerebrale: votre médecin ou kinésithérapeute
+      adulte_aphasie_avc: votre médecin ou orthophoniste
+      adulte_sla: votre médecin ou kinésithérapeute
+      personne_agee_trouble_neuro: votre médecin
     contraintes_specifiques:
       - "Rôle A (aide à communiquer avec le·la professionnel·le de santé) : l'assistant
         n'est jamais présent au rendez-vous et ne connaît jamais l'état de santé réel
         du persona ; il aide seulement à formuler ou clarifier la question à poser,
         sans jamais donner lui-même de diagnostic, de posologie ou de conseil médical
         direct."
-      - "Rôle B (question de connaissance générale, sous-thème clarification_traitement
-        uniquement) : l'assistant peut expliquer factuellement ce qu'est un terme, un
-        examen ou un type de traitement courant (ex. \"C'est quoi une prise de sang ?\"),
-        mais jamais donner un avis sur le cas personnel du persona ni un diagnostic."
+      - "Rôle B (question de connaissance générale, tous sous-thèmes) : l'assistant
+        peut expliquer factuellement ce qu'est un terme, un examen ou un type de
+        traitement courant (ex. \"C'est quoi une prise de sang ?\", \"À quoi sert un
+        examen de la vue ?\"), mais jamais donner un avis sur le cas personnel du
+        persona, un diagnostic, ni confirmer ou infirmer qu'un symptôme précis du
+        persona est normal."
     quota_exemples: 120
     sous_themes:
       - id: effets_secondaires
         description: Poser une question sur un effet secondaire ressenti.
+        ratio_connaissance: 0.7
+        intentions:
+          - un effet inattendu ressenti peu après une prise
+          - une gêne qui persiste depuis plusieurs jours
+          - un changement physique remarqué depuis le début du traitement
+          - une réaction après avoir pris deux médicaments en même temps
+          - une sensation inhabituelle qui inquiète
+          - un effet qui empêche de faire une activité du quotidien
+          - une envie de savoir si l'effet va s'arrêter tout seul
       - id: douleur_gene
         description: Décrire une douleur ou une gêne physique.
+        ratio_connaissance: 0.7
+        intentions:
+          - une douleur qui vient de commencer
+          - une gêne qui revient régulièrement
+          - une douleur qui s'aggrave avec un mouvement précis
+          - une gêne qui empêche de dormir
+          - une douleur difficile à localiser précisément
+          - une gêne qui change d'intensité dans la journée
+          - une douleur apparue après un effort
       - id: clarification_traitement
         description: Demander une clarification sur un traitement ou un examen.
-        ratio_connaissance: 0.3
+        ratio_connaissance: 0.8
+        intentions:
+          - le but général d'un traitement
+          - la façon dont un examen se déroule
+          - la différence entre deux types de traitement
+          - la raison pour laquelle un examen est proposé
+          - ce que signifie un terme médical entendu
+          - la durée habituelle d'un traitement
+          - ce qui se passe si un traitement est arrêté trop tôt
       - id: preparation_rdv
         description: Préparer les questions à poser avant un rendez-vous.
+        ratio_connaissance: 0.7
+        intentions:
+          - une inquiétude à exprimer avant le rendez-vous
+          - une question sur ce qu'il faut apporter au rendez-vous
+          - un symptôme à ne pas oublier de mentionner
+          - une question sur le déroulement du rendez-vous
+          - le souhait de préparer une liste de questions
+          - une question sur la durée habituelle d'un rendez-vous
+          - l'envie de savoir quoi dire en premier
 
   famille:
     label: Famille
     contexte: Échanges avec les proches (parents, fratrie, enfants, conjoint·e).
-    interlocuteur: un·e proche (parent, fratrie, enfant ou conjoint·e, selon le sous-thème)
+    interlocuteur_par_persona:
+      enfant_pictogrammes: tes parents
+      adolescent_synthese_vocale: tes parents ou ta fratrie
+      adulte_paralysie_cerebrale: votre famille (parents, fratrie, conjoint·e)
+      adulte_aphasie_avc: votre famille (conjoint·e, enfants)
+      adulte_sla: votre famille (conjoint·e, enfants)
+      personne_agee_trouble_neuro: vos enfants ou vos proches
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
       - id: exprimer_emotion
         description: Exprimer une émotion (joie, colère, fatigue, inquiétude) à un proche.
+        ratio_connaissance: 0.7
+        intentions:
+          - une joie à partager
+          - une colère ou une frustration à exprimer
+          - une fatigue ressentie
+          - une inquiétude à propos de quelque chose
+          - un soulagement après un évènement
+          - une tristesse à partager
+          - une fierté à exprimer
       - id: demander_aide_tache
-        description: Demander de l'aide pour une tâche du quotidien.
+        description: "Demander de l'aide à un proche pour une tâche du quotidien, sans
+          préciser la tâche par un détail non fourni (rester générique : \"une tâche à
+          la maison\", jamais \"la vaisselle de ce soir\")."
+        ratio_connaissance: 0.75
+        intentions:
+          - une aide pour une tâche physique difficile à faire seul
+          - une aide pour comprendre comment faire quelque chose
+          - une aide pour terminer une tâche commencée
+          - une aide pour une tâche qui prend beaucoup de temps
+          - une aide ponctuelle pour un imprévu domestique
+          - une aide pour porter ou déplacer quelque chose
+          - une aide pour organiser une tâche à plusieurs étapes
       - id: raconter_journee
         description: Raconter sa journée ou un évènement vécu.
+        ratio_connaissance: 0.75
+        intentions:
+          - un moment agréable vécu dans la journée
+          - une difficulté rencontrée dans la journée
+          - quelque chose d'inhabituel qui s'est passé
+          - une rencontre faite dans la journée
+          - un sentiment général sur la journée écoulée
+          - une activité réussie dans la journée
+          - quelque chose que le persona a appris dans la journée
       - id: negocier_pause
         description: Négocier un moment calme ou une pause.
+        ratio_connaissance: 0.7
+        intentions:
+          - le besoin d'un moment de calme après une activité
+          - une pause avant de continuer une tâche
+          - le souhait de remettre quelque chose à plus tard
+          - une fatigue qui justifie une pause
+          - le besoin de silence pour se reposer
+          - une pause pour reprendre des forces
+          - le souhait de ralentir le rythme d'une activité
 
   vie_quotidienne:
     label: Vie quotidienne
     contexte: Situations de la vie courante hors cercle familial et scolaire.
-    interlocuteur: une personne du quotidien (vendeur·se, serveur·se, agent·e de transport,
-      passant·e, selon le sous-thème)
+    interlocuteur_par_persona:
+      enfant_pictogrammes: la personne en face de toi (vendeur, serveur, passant...)
+      adolescent_synthese_vocale: la personne en face de toi (vendeur, serveur, agent de transport...)
+      adulte_paralysie_cerebrale: la personne en face de vous (vendeur, serveur, agent de transport...)
+      adulte_aphasie_avc: la personne en face de vous (vendeur, serveur, agent de transport...)
+      adulte_sla: la personne en face de vous (vendeur, serveur, agent de transport...)
+      personne_agee_trouble_neuro: la personne en face de vous (vendeur, serveur, agent de transport...)
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
       - id: demande_lieu_public
         description: Faire une demande dans un lieu public (restaurant, magasin, transport).
+        ratio_connaissance: 0.75
+        intentions:
+          - demander où se trouve quelque chose dans un lieu public
+          - demander de l'aide pour effectuer un achat
+          - demander une information sur un service proposé
+          - demander de patienter ou d'être aidé plus lentement
+          - demander une précision sur un prix ou un horaire général
+          - demander de répéter une information mal comprise
+          - demander une place assise ou un aménagement
       - id: gerer_imprevu
-        description: Gérer un imprévu (retard, changement de programme).
+        description: "Réagir à un imprévu (retard, changement, contretemps) sans détail
+          précis sur les circonstances (pas de lieu, d'heure ni d'évènement inventé)."
+        ratio_connaissance: 0.7
+        intentions:
+          - signaler qu'on ne comprend pas ce qui se passe
+          - demander ce qu'il faut faire face à un imprévu
+          - demander de l'aide face à un changement soudain
+          - exprimer qu'un imprévu cause de la difficulté
+          - demander combien de temps un imprévu va durer
+          - demander une alternative face à un imprévu
+          - demander d'être prévenu si la situation change
       - id: exprimer_preference_refus
         description: Exprimer une préférence ou un refus.
+        ratio_connaissance: 0.75
+        intentions:
+          - exprimer une préférence entre deux options
+          - refuser poliment une proposition
+          - exprimer un besoin de plus de temps pour décider
+          - exprimer que quelque chose ne convient pas
+          - demander une autre option
+          - exprimer un accord partiel
+          - exprimer le souhait de ne pas faire quelque chose maintenant
       - id: demander_itineraire
         description: Demander son chemin ou une information d'orientation.
+        ratio_connaissance: 0.8
+        intentions:
+          - demander la direction à suivre pour aller quelque part
+          - demander si un trajet est accessible facilement
+          - demander combien de temps prend un trajet
+          - demander s'il existe un chemin plus simple
+          - demander de l'aide pour s'orienter
+          - demander si on est dans la bonne direction
+          - demander un repère pour se situer
 
   ecole:
     label: École
     contexte: "Vie scolaire : classe, enseignant·e, camarades."
-    interlocuteur: un·e enseignant·e ou un·e camarade de classe (selon le sous-thème)
+    interlocuteur_par_persona:
+      enfant_pictogrammes: ta maîtresse ou ton maître
+      adolescent_synthese_vocale: ton ou ta prof
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
       - id: question_enseignant
         description: Poser une question à un·e enseignant·e.
-        ratio_connaissance: 0.7
+        ratio_connaissance: 0.8
+        poids_personas:
+          adulte_paralysie_cerebrale: 0
+          adulte_aphasie_avc: 0
+          adulte_sla: 0
+          personne_agee_trouble_neuro: 0
+        intentions:
+          - demander une précision sur une consigne
+          - demander pourquoi une règle de classe existe
+          - demander combien de temps une activité va durer
+          - demander ce qu'il faut faire ensuite
+          - demander de répéter une explication plus lentement
+          - demander une information générale sur le fonctionnement de la classe
+          - demander la définition d'un mot rencontré en classe
       - id: aide_camarade
-        description: Demander de l'aide à un·e camarade.
+        description: "Demander ou proposer de l'aide à un·e camarade pour une activité
+          scolaire, sans détail précis sur le contenu de l'activité (pas de matière,
+          d'exercice ni de consigne inventés)."
+        ratio_connaissance: 0.7
+        poids_personas:
+          adulte_paralysie_cerebrale: 0
+          adulte_aphasie_avc: 0
+          adulte_sla: 0
+          personne_agee_trouble_neuro: 0
+        intentions:
+          - demander de l'aide pour une activité en cours
+          - proposer de l'aide à un camarade en difficulté
+          - demander qu'on répète une explication
+          - demander de partager du matériel
+          - proposer de faire une activité ensemble
+          - demander de l'aide pour se repérer dans une consigne
+          - demander à un camarade s'il a compris quelque chose
       - id: activite_groupe
         description: Participer à une activité de groupe.
+        ratio_connaissance: 0.75
+        poids_personas:
+          adulte_paralysie_cerebrale: 0
+          adulte_aphasie_avc: 0
+          adulte_sla: 0
+          personne_agee_trouble_neuro: 0
+        intentions:
+          - proposer une idée pour l'activité de groupe
+          - demander comment se répartir les tâches
+          - exprimer le souhait de participer davantage
+          - demander à quel moment c'est son tour
+          - demander de l'aide pour comprendre le rôle de chacun
+          - exprimer une difficulté à suivre le rythme du groupe
+          - demander si tout le monde est d'accord sur une idée
       - id: signaler_incomprehension
-        description: Signaler une incompréhension pendant un cours.
+        description: "Signaler qu'on n'a pas compris quelque chose en classe (une
+          consigne, une explication, une activité), sans détail précis sur le contenu
+          (pas de matière ni de sujet inventés)."
+        ratio_connaissance: 0.7
+        poids_personas:
+          adulte_paralysie_cerebrale: 0
+          adulte_aphasie_avc: 0
+          adulte_sla: 0
+          personne_agee_trouble_neuro: 0
+        intentions:
+          - signaler qu'une explication est allée trop vite
+          - demander qu'on reformule autrement
+          - signaler qu'un mot n'est pas compris
+          - demander une pause pour comprendre
+          - signaler qu'on a perdu le fil de l'explication
+          - demander un exemple pour mieux comprendre
+          - signaler qu'on a besoin d'aide sans savoir quoi demander précisément

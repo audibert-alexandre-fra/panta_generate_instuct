@@ -36,4 +36,4 @@ export TRANSFORMERS_OFFLINE=1
 PY_INCLUDE=$(uv run python -c "import sysconfig; print(sysconfig.get_paths()['include'])")
 export CPATH="${PY_INCLUDE}:${CPATH}"
 
-srun uv run python -u -m panta_generate_data_instruct.generate --model Qwen/Qwen3-32B --n-per-cell 5 --output data/raw/generated.jsonl --raw-log data/raw/generated_raw_log.json --log-level INFO
+srun uv run python -u -m panta_generate_data_instruct.generate --model Qwen/Qwen3-32B --n-per-cell 1 --output data/raw/generated.jsonl --raw-log data/raw/generated_raw_log.json --log-level INFO
