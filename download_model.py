@@ -13,7 +13,7 @@ import argparse
 
 from huggingface_hub import snapshot_download
 
-DEFAULT_MODEL = "Qwen/Qwen3-8B"
+DEFAULT_MODEL = "paraphrase-multilingual-MiniLM-L12-v2"
 
 
 def main() -> None:
