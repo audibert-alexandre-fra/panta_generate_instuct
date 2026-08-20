@@ -5,15 +5,22 @@ uniquement l'"instruction" (cf. build_instruction_prompt), un second produit
 uniquement l'"output" à partir de l'instruction retenue (cf. build_output_prompt).
 Séparer les deux évite qu'un appel unique ne lisse le bruit caractéristique propre au
 persona dans l'instruction.
+
+L'assistant a un seul comportement, décliné en deux cas (cf. CasType) : RÉPONSE
+(répondre directement, de façon factuelle) ou RENVOI (dire qu'il ne peut pas répondre
+et indiquer vers qui se tourner). Le critère de bascule n'est jamais le sujet de la
+question mais la source de la réponse : dépend-elle de cette personne, de ce lieu, de
+ce moment ? Si oui, RENVOI ; sinon, RÉPONSE.
 """
 
 from __future__ import annotations
 
+import random
 from typing import Literal
 
 from panta_generate_data_instruct.schemas import Persona, SousTheme, StyleGuide, Theme
 
-RoleType = Literal["A", "B"]
+CasType = Literal["reponse", "renvoi"]
 
 SYSTEM_PROMPT = """Tu es un générateur de données d'entraînement pour un assistant de \
 Communication Alternative et Améliorée (CAA), utilisé par des personnes en situation \
@@ -22,43 +29,37 @@ de handicap de la communication.
 Chaque exemple simule un échange réel : "instruction" est le message composé par le \
 persona via son moyen de CAA, et "output" est la réponse de l'ASSISTANT CAA lui-même \
 (pas celle d'un tiers réel comme un·e médecin, un·e enseignant·e ou un·e proche). \
-L'assistant est un outil de communication que le persona utilise pour interagir avec \
-des tiers réels : il ne participe jamais physiquement à la situation vécue par le \
-persona (il n'est pas en classe, pas au rendez-vous médical, etc.) et ne connaît donc \
-JAMAIS un contenu qui ne lui a pas été donné dans l'instruction (le contenu d'un \
-cours, ce qu'un tiers a dit, un fait précis non fourni...). Halluciner un tel contenu \
-est une erreur grave à éviter absolument.
+L'assistant est un outil de communication que le persona utilise : il ne participe \
+jamais physiquement à la situation vécue par le persona (il n'est pas en classe, pas \
+au rendez-vous médical, etc.) et ne connaît donc JAMAIS un contenu qui ne lui a pas \
+été donné dans l'instruction (le contenu d'un cours, ce qu'un tiers a dit, un fait \
+précis non fourni...). Halluciner un tel contenu est une erreur grave à éviter \
+absolument.
 
-Chaque exemple relève de l'un de ces deux rôles, précisé dans le prompt utilisateur :
-- Rôle A : l'assistant aide le persona à formuler, reformuler ou clarifier un message \
-à adresser à un tiers réel (professionnel·le, proche, enseignant·e, camarade...). Il \
-ne répond jamais à la place de ce tiers et n'invente jamais le contenu que seul ce \
-tiers connaît. Par défaut, il propose directement 2 ou 3 formulations candidates ; il \
-ne pose une question de clarification que si la situation est réellement ambiguë.
-- Rôle B : l'assistant répond directement à une vraie question de connaissance \
-générale, simple et autosuffisante (tout le contexte nécessaire est déjà dans \
-l'instruction). La réponse doit apporter un contenu factuel réel, jamais une esquive \
-du type "je vais t'expliquer" sans rien expliquer. Une instruction ne relève du rôle B \
-que si elle a la même réponse pour n'importe qui, n'importe où, n'importe quand : si \
-la réponse dépend du lieu, du moment ou de la personne, c'est le rôle A. De même, une \
-instruction de la forme "comment dire...", "comment demander...", "comment \
-expliquer..." relève toujours du rôle A (même si le sujet semble général), jamais du \
-rôle B.
+L'assistant a un seul comportement, décliné en deux cas, précisé dans le prompt \
+utilisateur :
+- Cas RÉPONSE : l'assistant répond directement à la question, de façon factuelle, \
+simple et courte.
+- Cas RENVOI : l'assistant n'est pas en position de savoir. Il dit qu'il ne peut pas \
+répondre, et indique vers qui se tourner (le médecin, l'enseignant·e, la personne en \
+face de lui, un proche, selon la situation).
 
-Règle absolue, valable pour TOUS les thèmes et tous les sous-thèmes, y compris hors du \
-thème médical : toute instruction qui porte sur un symptôme, une sensation ou un effet \
-ressenti par le persona (douleur, fatigue, effet d'un traitement, sensation physique \
-inhabituelle...) relève toujours du rôle A. L'assistant ne dit jamais si c'est normal, \
-grave ou bénin, et n'en propose jamais la cause. Il aide seulement à formuler une ou \
-deux questions à poser à un médecin, et rappelle explicitement que seul un médecin \
-peut répondre. Exemple interdit, même hors du thème médical : à "Qu'est-ce que je peux \
-faire si j'ai mal à la tête ?", ne jamais répondre par une explication ou une liste de \
-remèdes ; proposer une formulation à adresser à un médecin.
+Le critère de bascule entre les deux cas n'est JAMAIS le sujet de la question (santé, \
+école, famille...), mais la source de la réponse :
+Question à se poser : la réponse dépend-elle de cette personne, de ce lieu, ou de ce \
+moment précis ? Si oui → RENVOI. Sinon → RÉPONSE.
+Exemples : "C'est quoi une IRM ?" → RÉPONSE (connaissance générale). "Pourquoi ma \
+langue est verte depuis le médicament ?" → RENVOI vers le médecin (dépend de cette \
+personne). "Combien de temps dure un rendez-vous médical ?" → RÉPONSE (fait général). \
+"Où sont les toilettes ?" → RENVOI vers une personne présente (dépend de ce lieu). \
+"Combien de temps de retard ?" → RENVOI vers l'agent (dépend de ce moment). Cette \
+logique s'applique à tous les thèmes, pas seulement au médical : une instruction de la \
+forme "comment dire...", "comment demander...", "comment expliquer..." dépend elle \
+aussi toujours de la personne concernée, donc relève du RENVOI.
 
-L'assistant ne répond jamais à la place du tiers réel avec qui le persona communique \
-(médecin, proche, enseignant·e, camarade...) : il ne s'engage jamais lui-même dans une \
-action physique (porter un objet, se déplacer, réexpliquer un cours à la place du \
-tiers...) et n'utilise jamais l'impératif pour renvoyer la tâche au persona.
+Dans le cas RENVOI, l'assistant ne dit jamais si c'est normal, grave ou bénin, et ne \
+propose jamais de cause ni d'explication partielle : il dit seulement qu'il ne peut \
+pas répondre, et vers qui se tourner. Rien d'autre.
 
 Registre : {registre}
 
@@ -89,14 +90,17 @@ Angle précis à adopter pour cette instruction : {intention}
 
 {persona_bloc}
 
-{role_instruction_bloc}
+{cas_instruction_bloc}
 
 Règles impératives pour l'"instruction" :
 - Doit rester une phrase à peu près correcte et reconnaissable comme une phrase, même \
 simplifiée (mots manquants ou conjugaison approximative tolérés selon le profil du \
 persona) — jamais une simple liste de mots-clés juxtaposés sans lien grammatical \
 (mauvais exemples, à ne jamais produire : "couleur vert", "docteur pilule vert langue \
-pourquoi").
+pourquoi") et jamais une combinaison de mots qui n'a pas de sens (mauvais exemples, à \
+ne jamais produire : "Combien de temps pour enfiler la ville ?", "je trouve comment \
+enterrer bien usage télévision") : chaque mot choisi doit avoir un rapport clair et \
+compréhensible avec le sous-thème et l'angle demandés.
 - Auto-suffisance stricte : ne renvoie jamais à un référent que l'assistant n'a pas \
 reçu ("cet exercice", "la leçon", "ce document"...). Tout démonstratif (ce, cet, \
 cette, ces) doit obligatoirement pointer vers un mot déjà présent plus tôt dans \
@@ -128,7 +132,7 @@ Sous-thème : {sous_theme_id} — {sous_theme_description}
 Instruction du persona (déjà fixée, ne pas la modifier ni la recopier telle quelle en \
 préambule de l'output) : "{instruction}"
 
-{role_output_bloc}
+{cas_output_bloc}
 
 Règles impératives pour l'"output" :
 - Français impeccable : orthographe et conjugaison correctes de chaque verbe, \
@@ -138,72 +142,84 @@ l'instruction du persona ; il ne doit jamais apparaître dans l'output, même qu
 l'instruction est bruitée ou télégraphique.
 - Ne recopie jamais l'instruction en préambule.
 - N'utilise jamais l'impératif pour renvoyer la tâche au persona (interdit par ex. \
-"Demande-lui toi-même", "Explique-lui ce que tu ressens") : l'assistant agit lui-même \
-en formulant une proposition, jamais en délégant.
+"Demande-lui toi-même", "Il faut demander à ton camarade") : l'assistant ne délègue \
+jamais sa réponse au persona.
 - Ne s'engage jamais physiquement à la place du tiers réel avec qui le persona \
 communique (interdit par ex. "je viens vous aider à porter ça", "j'arrive tout de \
-suite", "je vais te réexpliquer") : l'assistant aide à formuler ou transmettre un \
-message, il n'agit jamais lui-même dans la situation vécue par le persona.
+suite") : l'assistant n'agit jamais lui-même dans la situation vécue par le persona.
 - Respecte strictement le registre d'adresse {persona_registre_adresse} envers le \
-persona, y compris dans les formulations candidates proposées.
+persona.
 - N'invente aucun détail contextuel précis (date, heure, lieu, nom propre, numéro) et \
 aucun contenu que l'assistant n'a pas reçu dans l'instruction. Tout démonstratif (ce, \
 cet, cette, ces) doit pointer vers un mot déjà présent dans l'instruction ou plus tôt \
 dans l'output ; sinon utilise un article indéfini.
+- Termine toujours par une ponctuation finale (. ! ou ?) et referme tout guillemet \
+ouvert : ne coupe jamais l'output en cours de phrase ou en plein guillemet.
 - Respecte les éventuelles contraintes spécifiques au thème listées ci-dessus.
 
 Réponds uniquement avec l'objet JSON demandé : {{"output": "..."}}"""
 
 
-ROLE_A_INSTRUCTION_BLOC = """Rôle de l'assistant pour cet exemple : RÔLE A — aider à communiquer avec {theme_interlocuteur}.
-Le persona vit une situation réelle (un cours, une tâche, un rendez-vous...) dont \
-l'assistant ne connaît PAS le contenu précis. L'"instruction" est le message du \
-persona à propos de cette situation, qui doit rester générale (ex. "je ne comprends \
-pas la leçon") sans détail que l'assistant serait censé connaître."""
+CAS_REPONSE_INSTRUCTION_BLOC = """Cas de cet exemple : RÉPONSE.
+L'"instruction" doit être une vraie question dont la réponse est exactement la même \
+pour n'importe qui, n'importe où, n'importe quand (ex. "C'est quoi un verbe ?", \
+"Combien font 5 et 3 ?", "Combien de temps dure un rendez-vous médical en général ?"). \
+Si en écrivant l'instruction tu te rends compte que la réponse dépendrait en réalité \
+de cette personne, de ce lieu ou de ce moment précis, ce n'est PAS ce cas : reformule \
+l'angle pour rester sur une vraie question de portée générale."""
 
-ROLE_B_INSTRUCTION_BLOC = """Rôle de l'assistant pour cet exemple : RÔLE B — répondre à une question de connaissance générale.
-L'"instruction" est une vraie question de connaissance générale, simple et \
-autosuffisante : tout ce qu'il faut pour y répondre est déjà dans la question, sans \
-référence à une situation ou un contenu externe non fourni (ex. "C'est quoi un \
-verbe ?", "Combien font 5 et 3 ?", "C'est quand l'automne ?", "Pourquoi le ciel est \
-bleu ?").
-Test à appliquer avant de produire l'instruction : est-ce qu'elle aurait exactement la \
-même réponse pour n'importe qui, n'importe où, n'importe quand ? Si la réponse dépend \
-du lieu, du moment ou de la situation personnelle du persona, ce n'est PAS une \
-instruction de rôle B (ex. interdit en rôle B : "Où sont les toilettes ?", "C'est \
-normal que la machine fasse ce bruit ?" — ce sont des questions de rôle A). N'utilise \
-jamais un tournure "comment dire...", "comment demander...", "comment expliquer..." : \
-cela relève toujours du rôle A."""
+CAS_RENVOI_INSTRUCTION_BLOC = """Cas de cet exemple : RENVOI.
+L'"instruction" porte sur quelque chose dont la réponse dépend de cette personne, de \
+ce lieu ou de ce moment précis (ex. un symptôme ressenti, l'endroit où se trouve un \
+objet dans ce lieu précis, la durée d'un retard en ce moment, pourquoi un proche \
+précis réagit d'une certaine façon). L'assistant qui recevrait cette instruction ne \
+peut pas connaître la réponse à l'avance, quel que soit son savoir général."""
 
 
-ROLE_A_OUTPUT_BLOC_PROPOSITION = """Rôle de l'assistant pour cet exemple : RÔLE A — aider à communiquer avec {theme_interlocuteur}.
-Comportement attendu (cas par défaut, situation pas ambiguë) : propose directement 2 \
-ou 3 formulations candidates que le persona pourrait dire ou écrire à \
-{theme_interlocuteur}. Ne pose PAS de question de clarification ici. Jamais une \
-réponse au contenu que l'assistant ne connaît pas.
-Exemple correct : "Tu pourrais dire : « Je n'ai pas compris, tu peux réexpliquer ? » \
-ou bien « Est-ce que tu peux recommencer plus lentement ? »"
-Exemple interdit (hallucination de contenu) : "Bien sûr, je vais te réexpliquer, tu \
-veux que je commence par la fin ou le début ?\""""
-
-ROLE_A_OUTPUT_BLOC_CLARIFICATION = """Rôle de l'assistant pour cet exemple : RÔLE A — aider à communiquer avec {theme_interlocuteur}.
-Comportement attendu (cas minoritaire, situation réellement ambiguë) : pose une \
-question de clarification courte pour préciser ce que le persona veut dire à \
-{theme_interlocuteur}, avant de proposer une formulation. Jamais une réponse au \
-contenu que l'assistant ne connaît pas.
-Exemple correct : "Tu veux dire à {theme_interlocuteur} que tu n'as pas compris, ou \
-que tu es fatigué ?"
-Exemple interdit (hallucination de contenu) : "Bien sûr, je vais te réexpliquer, tu \
-veux que je commence par la fin ou le début ?\""""
-
-ROLE_B_OUTPUT_BLOC = """Rôle de l'assistant pour cet exemple : RÔLE B — répondre à une question de connaissance générale.
+CAS_REPONSE_OUTPUT_BLOC = """Cas de cet exemple : RÉPONSE.
 Donne une vraie réponse factuelle, courte, juste et adaptée à l'âge et au profil du \
-persona — jamais une esquive du type "je vais t'expliquer" sans contenu réel. La \
+persona — jamais une esquive du type "je vais t'expliquer" sans contenu réel. Cette \
 réponse doit être valable pour n'importe qui, n'importe où, n'importe quand : si tu \
-constates qu'elle dépend en réalité du lieu, du moment ou de la situation personnelle \
-du persona, ne réponds jamais comme si tu connaissais ce contexte précis (interdit \
-par ex. "les toilettes sont sur la gauche", "c'est normal que la machine fasse ce \
-bruit")."""
+constates qu'elle dépend en réalité du lieu, du moment ou de la personne, ne réponds \
+jamais comme si tu connaissais ce contexte précis (interdit par ex. "les toilettes \
+sont sur la gauche", "c'est normal que la machine fasse ce bruit").
+Consigne de forme pour cette réponse précise (varie d'un exemple à l'autre, à \
+respecter ici) : {format_directive}"""
+
+CAS_RENVOI_OUTPUT_BLOC = """Cas de cet exemple : RENVOI — l'assistant n'est pas en position de savoir.
+Structure attendue, rien d'autre : une phrase indiquant que l'assistant ne peut pas \
+répondre, puis une phrase indiquant que c'est {theme_interlocuteur} qui peut répondre. \
+Aucune formulation candidate, aucune explication partielle, aucun avis sur \
+normal/grave/bénin, aucune cause proposée, même partielle.
+Exemple de phrasé à utiliser comme MODÈLE DE STYLE uniquement (adapte-le au registre \
+d'adresse et au persona, ne le recopie jamais mot pour mot) : "{variante_renvoi}\""""
+
+
+# Variantes de la phrase "je ne peux pas répondre à ça", tirées au sort pour éviter
+# qu'un patron unique ("Tu veux que je t'aide ?"-like) ne se répète sur tout le
+# sous-ensemble RENVOI. {interlocuteur} est rempli avec Theme.interlocuteur_pour().
+RENVOI_PHRASES_VARIANTES = [
+    "Ça, je ne peux pas te le dire. C'est {interlocuteur} qui peut te répondre.",
+    "Je ne suis pas en mesure de répondre à ça. Il vaut mieux demander à {interlocuteur}.",
+    "Ce n'est pas à moi de répondre à cette question. Pose-la à {interlocuteur}.",
+    "Je n'ai pas cette information. C'est une question à poser à {interlocuteur}.",
+    "Là, je ne peux pas t'aider directement. {interlocuteur_maj} pourra te répondre.",
+    "Ce n'est pas quelque chose que je peux savoir. Demande plutôt à {interlocuteur}.",
+    "Je ne peux pas te donner de réponse sur ce point. Il n'y a que {interlocuteur} qui puisse te répondre.",
+    "Ça dépend de quelque chose que je ne connais pas, donc je ne peux pas répondre. {interlocuteur_maj} saura te dire.",
+]
+
+
+# Variantes de forme pour le cas RÉPONSE, tirées au sort pour éviter que les outputs
+# ne commencent tous par le même enrobage (constat observé sur la v2).
+FORMATS_REPONSE_VARIANTES = [
+    "réponds directement, sans aucune formule d'introduction, en une seule phrase courte.",
+    "commence par une très courte phrase d'introduction (2-4 mots, ex. \"Alors, \", \"Pour te répondre : \"), puis donne la réponse.",
+    "réponds en deux phrases courtes plutôt qu'une seule, sans préambule.",
+    "réponds directement en une seule phrase, sans aucun préambule ni formule de politesse.",
+    "réponds en une phrase de longueur moyenne, ni très courte ni longue, sans préambule.",
+    "donne la réponse directement puis ajoute une très courte phrase complémentaire si utile, sans préambule.",
+]
 
 
 def build_system_prompt(style_guide: StyleGuide) -> str:
@@ -230,17 +246,12 @@ def build_instruction_prompt(
     theme: Theme,
     sous_theme: SousTheme,
     persona: Persona,
-    role: RoleType,
+    cas: CasType,
     intention: str,
     exemple_instruction: str,
     instructions_deja_retenues: list[str],
 ) -> str:
-    if role == "A":
-        role_bloc = ROLE_A_INSTRUCTION_BLOC.format(
-            theme_interlocuteur=theme.interlocuteur_pour(persona.id)
-        )
-    else:
-        role_bloc = ROLE_B_INSTRUCTION_BLOC
+    cas_bloc = CAS_REPONSE_INSTRUCTION_BLOC if cas == "reponse" else CAS_RENVOI_INSTRUCTION_BLOC
 
     deja_retenues_bloc = ""
     if instructions_deja_retenues:
@@ -258,33 +269,51 @@ def build_instruction_prompt(
         sous_theme_description=sous_theme.description,
         intention=intention,
         persona_bloc=_persona_bloc(persona, exemple_instruction),
-        role_instruction_bloc=role_bloc,
+        cas_instruction_bloc=cas_bloc,
         deja_retenues_bloc=deja_retenues_bloc,
     )
+
+
+def choisir_variante_renvoi(theme: Theme, persona: Persona) -> str:
+    """Tire au sort une variante de phrase de renvoi et la remplit avec
+    l'interlocuteur réel du thème pour ce persona (varie par thème et par persona)."""
+    interlocuteur = theme.interlocuteur_pour(persona.id)
+    variante = random.choice(RENVOI_PHRASES_VARIANTES)
+    return variante.format(
+        interlocuteur=interlocuteur,
+        interlocuteur_maj=interlocuteur[0].upper() + interlocuteur[1:],
+    )
+
+
+def choisir_format_reponse() -> str:
+    """Tire au sort une consigne de forme pour un output du cas RÉPONSE."""
+    return random.choice(FORMATS_REPONSE_VARIANTES)
 
 
 def build_output_prompt(
     theme: Theme,
     sous_theme: SousTheme,
     persona: Persona,
-    role: RoleType,
+    cas: CasType,
     instruction: str,
     exemple_instruction: str,
-    demande_clarification: bool = False,
+    variante_renvoi: str | None = None,
+    format_directive: str | None = None,
 ) -> str:
     contraintes_bloc = ""
     if theme.contraintes_specifiques:
         lignes = "\n".join(f"- {c}" for c in theme.contraintes_specifiques)
         contraintes_bloc = f"Contraintes spécifiques au thème :\n{lignes}\n"
 
-    if role == "A":
-        theme_interlocuteur = theme.interlocuteur_pour(persona.id)
-        bloc_template = (
-            ROLE_A_OUTPUT_BLOC_CLARIFICATION if demande_clarification else ROLE_A_OUTPUT_BLOC_PROPOSITION
+    if cas == "renvoi":
+        cas_bloc = CAS_RENVOI_OUTPUT_BLOC.format(
+            theme_interlocuteur=theme.interlocuteur_pour(persona.id),
+            variante_renvoi=variante_renvoi or choisir_variante_renvoi(theme, persona),
         )
-        role_bloc = bloc_template.format(theme_interlocuteur=theme_interlocuteur)
     else:
-        role_bloc = ROLE_B_OUTPUT_BLOC
+        cas_bloc = CAS_REPONSE_OUTPUT_BLOC.format(
+            format_directive=format_directive or choisir_format_reponse()
+        )
 
     return OUTPUT_PROMPT_TEMPLATE.format(
         theme_label=theme.label,
@@ -294,6 +323,6 @@ def build_output_prompt(
         contraintes_bloc=contraintes_bloc,
         persona_bloc=_persona_bloc(persona, exemple_instruction),
         instruction=instruction,
-        role_output_bloc=role_bloc,
+        cas_output_bloc=cas_bloc,
         persona_registre_adresse=persona.registre_adresse,
     )

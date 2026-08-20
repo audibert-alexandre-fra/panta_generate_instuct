@@ -42,21 +42,19 @@ class Persona(BaseModel):
 class SousTheme(BaseModel):
     id: str
     description: str
-    # Proportion (0-1) d'exemples de type B (question de connaissance générale,
-    # autosuffisante) à générer pour ce sous-thème ; le reste est du type A (aide à
-    # communiquer avec le tiers réel du thème). Cf. build_role_bloc dans prompts.py.
-    # Doit être 0 si intentions_role_B est vide (aucun angle de connaissance générale
-    # plausible pour ce sous-thème).
-    ratio_connaissance: float = 0.0
-    # Angles concrets pour le rôle A (situation vécue par le persona) : un angle est
-    # tiré au sort par exemple généré pour diversifier le contenu au-delà du seul
-    # persona.
-    intentions_role_A: list[str] = Field(default_factory=list)
-    # Angles concrets pour le rôle B (question de connaissance générale, autosuffisante
-    # : même réponse pour n'importe qui, n'importe où, n'importe quand). Doit rester
-    # vide si aucun angle de ce sous-thème n'est réellement indépendant du contexte
-    # personnel du persona.
-    intentions_role_B: list[str] = Field(default_factory=list)
+    # Proportion (0-1) d'exemples du cas RÉPONSE (l'assistant répond directement, de
+    # façon factuelle) à générer pour ce sous-thème ; le reste est du cas RENVOI
+    # (l'assistant indique qu'il ne peut pas répondre et vers qui se tourner). Le
+    # critère de bascule n'est jamais le sujet mais la source de la réponse : dépend-elle
+    # de cette personne, de ce lieu, de ce moment ? Cf. les blocs CAS_* dans prompts.py.
+    ratio_reponse: float = 0.0
+    # Angles concrets pour le cas RÉPONSE (même réponse pour n'importe qui, n'importe
+    # où, n'importe quand) : un angle est tiré au sort par exemple généré.
+    intentions_reponse: list[str] = Field(default_factory=list)
+    # Angles concrets pour le cas RENVOI (la réponse dépend de cette personne, ce lieu
+    # ou ce moment précis, ex. un symptôme ressenti, un lieu, un retard, la réaction
+    # d'un proche donné).
+    intentions_renvoi: list[str] = Field(default_factory=list)
     # Poids de compatibilité persona -> sous-thème (0 = combinaison interdite, ex. un
     # persona adulte pour un sous-thème "école"). Persona absent de ce mapping = poids
     # 1 (compatible, part standard). Cf. Taxonomy.poids_persona.
@@ -88,10 +86,6 @@ class Theme(BaseModel):
 class ParametresGeneration(BaseModel):
     """Tunables pilotant la génération, à ajuster sans toucher au code Python."""
 
-    # Part des exemples de rôle A où l'assistant pose une question de clarification
-    # plutôt que de proposer directement 2-3 formulations candidates (comportement
-    # par défaut du rôle A).
-    clarification_ratio_role_a: float = 0.2
     # Seuil de similarité cosinus (embeddings) au-delà duquel deux instructions sont
     # considérées comme des quasi-doublons.
     dedup_seuil_cosinus: float = 0.85
@@ -102,6 +96,11 @@ class ParametresGeneration(BaseModel):
     # est rejetée pour être trop proche de l'exemple_instruction fourni dans le prompt
     # (évite qu'un exemple de persona ne soit recopié quasiment tel quel).
     similarite_exemple_max: float = 0.88
+    # Seuil de similarité cosinus en-deçà duquel une instruction générée est rejetée
+    # pour être trop éloignée du sous-thème/de l'intention demandés (proxy de
+    # cohérence sémantique : détecte une instruction qui a dérivé vers un contenu sans
+    # rapport, ex. "je trouve comment enterrer bien usage télévision").
+    coherence_similarite_min: float = 0.20
 
 
 class Taxonomy(BaseModel):
@@ -158,13 +157,12 @@ class InstructExample(BaseModel):
     theme: str
     sous_theme: str
     persona_id: str
-    # A : l'assistant aide à formuler/clarifier un message vers le tiers réel du thème.
-    # B : l'assistant répond directement à une question de connaissance générale
-    # autosuffisante. Cf. build_role_bloc dans prompts.py.
-    type_attendu: Literal["A", "B"]
-    # Angle concret tiré au sort dans SousTheme.intentions pour cet exemple.
+    # reponse : l'assistant répond directement, de façon factuelle (la réponse est la
+    # même pour n'importe qui, n'importe où, n'importe quand).
+    # renvoi : l'assistant n'est pas en position de savoir (la réponse dépend de cette
+    # personne, ce lieu ou ce moment précis) ; il le dit et indique vers qui se
+    # tourner. Cf. les blocs CAS_* dans prompts.py.
+    type_attendu: Literal["reponse", "renvoi"]
+    # Angle concret tiré au sort dans SousTheme.intentions_reponse/intentions_renvoi
+    # pour cet exemple.
     intention: str
-    # Rôle A uniquement : True si l'output pose une question de clarification plutôt
-    # que de proposer directement des formulations candidates (tiré selon
-    # ParametresGeneration.clarification_ratio_role_a). None pour le rôle B.
-    demande_clarification: bool | None = None

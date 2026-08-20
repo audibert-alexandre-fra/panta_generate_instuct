@@ -35,16 +35,21 @@ from panta_generate_data_instruct.dedup import deduplicate, get_embedder, simila
 from panta_generate_data_instruct.filters import (
     demonstratifs_non_introduits,
     engagement_physique_assistant,
+    explication_interdite_en_renvoi,
+    guillemets_ou_ponctuation_invalides,
     imperatif_delegation,
     incorrections_frequentes,
-    instruction_devrait_etre_role_a,
-    reponse_symptome_interdite,
+    instruction_devrait_etre_renvoi,
+    reparer_elisions,
+    structure_sujet_verbe_manquante,
 )
 from panta_generate_data_instruct.prompts import (
-    RoleType,
+    CasType,
     build_instruction_prompt,
     build_output_prompt,
     build_system_prompt,
+    choisir_format_reponse,
+    choisir_variante_renvoi,
 )
 from panta_generate_data_instruct.schemas import (
     GeneratedInstruction,
@@ -64,8 +69,12 @@ OUTPUT_SCHEMA = GeneratedOutput.model_json_schema()
 logger = logging.getLogger(__name__)
 
 
-def _pick_role(sous_theme: SousTheme) -> RoleType:
-    return "B" if random.random() < sous_theme.ratio_connaissance else "A"
+def _pick_cas(sous_theme: SousTheme) -> CasType:
+    return "reponse" if random.random() < sous_theme.ratio_reponse else "renvoi"
+
+
+def _exige_grammaire_correcte(persona: Persona) -> bool:
+    return "correct" in persona.grammaire.lower()
 
 
 def build_llm(model: str = DEFAULT_MODEL, enforce_eager: bool = True, **llm_kwargs) -> LLM:
@@ -87,7 +96,7 @@ class CellPlan:
 @dataclass
 class Candidate:
     plan: CellPlan
-    role: RoleType
+    cas: CasType
     intention: str
     exemple_instruction: str
     instruction: str | None = None
@@ -138,6 +147,7 @@ def _generate_instruction_pools(
     system_prompt = build_system_prompt(taxonomy.style_guide)
     seuil = taxonomy.parametres_generation.dedup_seuil_cosinus
     seuil_exemple = taxonomy.parametres_generation.similarite_exemple_max
+    seuil_coherence = taxonomy.parametres_generation.coherence_similarite_min
     embedder = get_embedder()
     pools: dict[int, list[Candidate]] = {id(plan): [] for plan in plans}
     wave_size = {id(plan): max(1, math.ceil(plan.overgen_count / N_VAGUES)) for plan in plans}
@@ -152,11 +162,11 @@ def _generate_instruction_pools(
         for plan in active_plans:
             deja_retenues = [c.instruction for c in pools[id(plan)]]
             for _ in range(wave_size[id(plan)]):
-                role = _pick_role(plan.sous_theme)
+                cas = _pick_cas(plan.sous_theme)
                 intentions = (
-                    plan.sous_theme.intentions_role_B
-                    if role == "B"
-                    else plan.sous_theme.intentions_role_A
+                    plan.sous_theme.intentions_reponse
+                    if cas == "reponse"
+                    else plan.sous_theme.intentions_renvoi
                 )
                 intention = random.choice(intentions) if intentions else plan.sous_theme.description
                 exemples_theme = plan.persona.exemples_instruction_par_theme.get(plan.theme.id, [])
@@ -165,7 +175,7 @@ def _generate_instruction_pools(
                     plan.theme,
                     plan.sous_theme,
                     plan.persona,
-                    role,
+                    cas,
                     intention,
                     exemple_instruction,
                     deja_retenues,
@@ -179,7 +189,7 @@ def _generate_instruction_pools(
                 wave_candidates.append(
                     Candidate(
                         plan=plan,
-                        role=role,
+                        cas=cas,
                         intention=intention,
                         exemple_instruction=exemple_instruction,
                     )
@@ -195,7 +205,7 @@ def _generate_instruction_pools(
 
         for candidate, output in zip(wave_candidates, outputs):
             text = output.outputs[0].text
-            tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.role}"
+            tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.cas}"
             try:
                 parsed = GeneratedInstruction.model_validate_json(text)
             except ValueError as exc:
@@ -211,10 +221,17 @@ def _generate_instruction_pools(
                     tag, demonstratifs, instruction,
                 )
                 continue
-            if candidate.role == "B" and instruction_devrait_etre_role_a(instruction):
+            if candidate.cas == "reponse" and instruction_devrait_etre_renvoi(instruction):
                 logger.warning(
-                    "[%s] instruction B rejetée (relève du rôle A, tournure "
+                    "[%s] instruction RÉPONSE rejetée (relève du RENVOI, tournure "
                     "\"comment dire/demander/expliquer\") : %s", tag, instruction,
+                )
+                continue
+            if _exige_grammaire_correcte(candidate.plan.persona) and structure_sujet_verbe_manquante(instruction):
+                logger.warning(
+                    "[%s] instruction rejetée (structure sujet-verbe manquante, "
+                    "incompatible avec la grammaire correcte exigée par le persona) : %s",
+                    tag, instruction,
                 )
                 continue
 
@@ -222,17 +239,31 @@ def _generate_instruction_pools(
 
         wave_candidates = [c for c in wave_candidates if c.instruction is not None]
         if wave_candidates:
-            similarites = similarites_par_paire(
+            similarites_exemple = similarites_par_paire(
                 [c.instruction for c in wave_candidates],
                 [c.exemple_instruction for c in wave_candidates],
                 embedder=embedder,
             )
-            for candidate, similarite in zip(wave_candidates, similarites):
-                if similarite >= seuil_exemple:
-                    tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.role}"
+            similarites_sujet = similarites_par_paire(
+                [c.instruction for c in wave_candidates],
+                [f"{c.plan.sous_theme.description} {c.intention}" for c in wave_candidates],
+                embedder=embedder,
+            )
+            for candidate, sim_exemple, sim_sujet in zip(
+                wave_candidates, similarites_exemple, similarites_sujet
+            ):
+                tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.cas}"
+                if sim_exemple >= seuil_exemple:
                     logger.warning(
                         "[%s] instruction rejetée (similarité %.2f avec l'exemple persona) : %s",
-                        tag, similarite, candidate.instruction,
+                        tag, sim_exemple, candidate.instruction,
+                    )
+                    candidate.instruction = None
+                elif sim_sujet < seuil_coherence:
+                    logger.warning(
+                        "[%s] instruction rejetée (similarité %.2f avec le sujet demandé, "
+                        "probablement incohérente) : %s",
+                        tag, sim_sujet, candidate.instruction,
                     )
                     candidate.instruction = None
 
@@ -271,21 +302,24 @@ def _generate_outputs(
     max_tokens: int,
 ) -> tuple[list[InstructExample], list[dict]]:
     system_prompt = build_system_prompt(taxonomy.style_guide)
-    clarification_ratio = taxonomy.parametres_generation.clarification_ratio_role_a
 
     conversations = []
-    demandes_clarification: list[bool | None] = []
     for candidate in candidates:
-        demande_clarification = candidate.role == "A" and random.random() < clarification_ratio
-        demandes_clarification.append(demande_clarification if candidate.role == "A" else None)
+        variante_renvoi = None
+        format_directive = None
+        if candidate.cas == "renvoi":
+            variante_renvoi = choisir_variante_renvoi(candidate.plan.theme, candidate.plan.persona)
+        else:
+            format_directive = choisir_format_reponse()
         prompt = build_output_prompt(
             candidate.plan.theme,
             candidate.plan.sous_theme,
             candidate.plan.persona,
-            candidate.role,
+            candidate.cas,
             candidate.instruction,
             candidate.exemple_instruction,
-            demande_clarification=demande_clarification,
+            variante_renvoi=variante_renvoi,
+            format_directive=format_directive,
         )
         conversations.append(
             [
@@ -304,11 +338,9 @@ def _generate_outputs(
 
     examples: list[InstructExample] = []
     raw_records: list[dict] = []
-    for candidate, demande_clarification, conversation, output in zip(
-        candidates, demandes_clarification, conversations, outputs
-    ):
+    for candidate, conversation, output in zip(candidates, conversations, outputs):
         text = output.outputs[0].text
-        tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.role}"
+        tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.cas}"
         logger.info("[%s] instruction : %s", tag, candidate.instruction)
         logger.info("[%s] sortie brute (output) : %s", tag, text)
 
@@ -316,9 +348,8 @@ def _generate_outputs(
             "theme": candidate.plan.theme.id,
             "sous_theme": candidate.plan.sous_theme.id,
             "persona_id": candidate.plan.persona.id,
-            "type_attendu": candidate.role,
+            "type_attendu": candidate.cas,
             "intention": candidate.intention,
-            "demande_clarification": demande_clarification,
             "instruction": candidate.instruction,
             "output_prompt": conversation[1]["content"],
             "raw_output": text,
@@ -332,17 +363,23 @@ def _generate_outputs(
             raw_records.append(record)
             continue
 
-        output_text = parsed.output
+        # Passe de relecture-réparation : corrige les élisions manquantes
+        # automatiquement (règle orthographique sûre) avant les filtres qui, eux,
+        # rejettent (fautes qui ne peuvent pas être corrigées de façon sûre).
+        output_text = reparer_elisions(parsed.output)
+
         rejet: str | None = None
         demonstratifs = demonstratifs_non_introduits(f"{candidate.instruction} {output_text}")
         if demonstratifs:
             rejet = f"démonstratif non introduit {demonstratifs}"
-        elif candidate.role == "A" and reponse_symptome_interdite(output_text):
-            rejet = "réassurance/cause interdite sur un symptôme"
+        elif candidate.cas == "renvoi" and explication_interdite_en_renvoi(output_text):
+            rejet = "réassurance/explication interdite dans un output RENVOI"
         elif engagement_physique_assistant(output_text):
             rejet = "engagement physique de l'assistant à la place du tiers"
         elif imperatif_delegation(output_text):
             rejet = "impératif de délégation vers le persona"
+        elif guillemets_ou_ponctuation_invalides(output_text):
+            rejet = "guillemets non appariés ou ponctuation finale manquante (probable troncature)"
         else:
             fautes = incorrections_frequentes(output_text)
             if fautes:
@@ -364,9 +401,8 @@ def _generate_outputs(
                 theme=candidate.plan.theme.id,
                 sous_theme=candidate.plan.sous_theme.id,
                 persona_id=candidate.plan.persona.id,
-                type_attendu=candidate.role,
+                type_attendu=candidate.cas,
                 intention=candidate.intention,
-                demande_clarification=demande_clarification,
             )
         )
 

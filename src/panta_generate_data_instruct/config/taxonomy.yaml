@@ -5,12 +5,15 @@
 # redistribué par sous-thème selon la matrice de compatibilité `poids_personas` (les
 # combinaisons persona x sous-thème non plausibles ont un poids de 0 et leur part est
 # reportée sur les personas compatibles du même sous-thème).
+#
+# Comportement de l'assistant : un seul comportement, décliné en deux cas (cf.
+# prompts.py). RÉPONSE : l'assistant répond directement, de façon factuelle. RENVOI :
+# l'assistant n'est pas en position de savoir, il le dit et indique vers qui se
+# tourner (le destinataire varie selon le thème, cf. interlocuteur_par_persona). Le
+# critère de bascule n'est jamais le sujet mais la source de la réponse : dépend-elle
+# de cette personne, de ce lieu, de ce moment ? Si oui, RENVOI ; sinon, RÉPONSE.
 
 parametres_generation:
-  # Part des exemples de rôle A où l'assistant pose une question de clarification
-  # plutôt que de proposer directement 2-3 formulations candidates (comportement par
-  # défaut du rôle A, cf. style_guide.regles et prompts.py).
-  clarification_ratio_role_a: 0.2
   # Seuil de similarité cosinus (embeddings sentence-transformers) au-delà duquel deux
   # instructions du même sous-thème sont considérées comme des quasi-doublons.
   dedup_seuil_cosinus: 0.85
@@ -23,6 +26,11 @@ parametres_generation:
   # l'exemple du persona). À arbitrer : valeur de départ prudente, à resserrer si des
   # quasi-recopies passent encore, à desserrer si trop de rejets légitimes.
   similarite_exemple_max: 0.88
+  # Seuil de similarité cosinus en-deçà duquel une instruction générée est rejetée
+  # pour être trop éloignée du sous-thème/de l'intention demandés (détection
+  # heuristique d'incohérence sémantique). À arbitrer : proxy imparfait par embeddings
+  # généraliste, pas une vraie analyse sémantique.
+  coherence_similarite_min: 0.20
 
 style_guide:
   registre: FALC (Facile à Lire et à Comprendre)
@@ -38,11 +46,18 @@ style_guide:
       correcte, reconnaissable comme une phrase même simplifiée (par ex. \"Pourquoi
       pilule fait langue verte, docteur ?\" est correct). Une simple liste de mots
       juxtaposés sans lien grammatical (par ex. \"docteur pilule vert langue
-      pourquoi\") n'est jamais acceptable, quel que soit le persona."
+      pourquoi\"), ou une combinaison de mots qui n'a pas de sens (par ex. \"Combien de
+      temps pour enfiler la ville ?\"), n'est jamais acceptable, quel que soit le
+      persona : chaque mot choisi doit avoir un rapport clair avec le sous-thème et
+      l'angle demandés."
     - "Interdiction que le champ instruction se limite à un ou deux mots isolés, ou à
       une liste de mots-clés sans lien grammatical entre eux : il doit toujours
       indiquer clairement, sous forme de phrase, ce que le persona veut savoir, dire
       ou demander."
+    - "Un persona dont la grammaire attendue est qualifiée de correcte (conjugaison
+      correcte, phrases complètes) ne produit jamais un enchaînement de mots sans
+      structure sujet-verbe reconnaissable, même dans une instruction courte (interdit
+      par ex. \"Verdict arrêt à arrêt du médicament ?\")."
     - Le champ output est toujours une phrase complète, simple et adaptée au persona.
     - "Ni l'instruction ni l'output ne doivent inventer de détail contextuel précis qui
       n'est fourni nulle part (une date, une heure, l'agencement d'un lieu, un
@@ -61,41 +76,36 @@ style_guide:
       est-ce que c'est normal (norme), qu'est-ce qui se passe si (conséquence),
       combien de temps (durée). Interdit : tout démonstratif ou défini renvoyant à un
       objet non introduit dans l'instruction elle-même. Exemple interdit : \"Comprends
-      pas exercice, peux aider ?\" — exemple valide : \"Comment dire au professeur que
-      c'est trop vite ?\"."
-    - "Pour le rôle A, l'assistant propose par défaut directement 2 ou 3 formulations
-      candidates que le persona pourrait dire à son interlocuteur ; il ne pose une
-      question de clarification que si la situation est réellement ambiguë (cas
-      minoritaire, cf. parametres_generation.clarification_ratio_role_a). \"Tu veux
-      que je t'aide à... ?\" ne doit jamais être le patron systématique des outputs de
-      rôle A."
+      pas exercice, peux aider ?\"."
+    - "Le cas RÉPONSE s'applique seulement si la réponse est la même pour n'importe
+      qui, n'importe où, n'importe quand ; sinon c'est le cas RENVOI, y compris pour
+      une instruction de la forme \"comment dire...\", \"comment demander...\",
+      \"comment expliquer...\" (qui dépend toujours de la personne concernée)."
+    - "Dans le cas RENVOI, l'output ne contient rien d'autre qu'une phrase disant que
+      l'assistant ne peut pas répondre et une phrase indiquant vers qui se tourner :
+      jamais d'avis sur normal/grave/bénin, jamais de cause ni d'explication
+      partielle, quel que soit le thème (pas seulement le médical)."
+    - "Les outputs varient de forme d'un exemple à l'autre (avec ou sans court
+      préambule, une ou plusieurs phrases, longueur variable) : aucun patron unique
+      (ex. \"Tu veux que je t'aide à... ?\") ne doit se répéter systématiquement."
     - "L'output ne recopie jamais l'instruction en préambule (interdit par ex. de
       commencer par reformuler ce que le persona vient de dire avant de répondre)."
     - "L'output n'utilise jamais l'impératif pour renvoyer la tâche à l'utilisateur
-      (interdit par ex. \"Demande au professeur toi-même\", \"Explique-lui ce que tu
-      ressens\") : l'assistant agit lui-même en formulant une proposition, jamais en
-      délégant la tâche au persona."
+      (interdit par ex. \"Demande au professeur toi-même\", \"Il faut demander à ton
+      camarade\") : l'assistant ne délègue jamais sa réponse au persona."
     - "Le registre d'adresse de l'assistant envers le persona (tu/vous) respecte
-      strictement le registre_adresse déclaré pour ce persona, y compris à l'intérieur
-      des formulations candidates proposées."
-    - "Règle globale (tous thèmes, pas seulement médical) : toute instruction portant
-      sur un symptôme, une sensation ou un effet ressenti par le persona relève
-      obligatoirement du rôle A. L'assistant ne dit jamais si c'est normal, grave ou
-      bénin, et n'en propose jamais la cause ; il aide seulement à formuler une
-      question à poser à un médecin et rappelle que seul un médecin peut répondre."
-    - "Une instruction ne relève du rôle B que si elle a la même réponse pour
-      n'importe qui, n'importe où, n'importe quand (sinon c'est le rôle A) ; une
-      instruction de la forme \"comment dire...\", \"comment demander...\", \"comment
-      expliquer...\" relève toujours du rôle A."
+      strictement le registre_adresse déclaré pour ce persona."
     - "L'assistant ne s'engage jamais lui-même dans une action physique à la place du
       tiers réel avec qui le persona communique (interdit par ex. \"je viens vous
-      aider à porter ça\", \"j'arrive tout de suite\") : il aide à formuler ou
-      transmettre un message, il n'agit jamais physiquement dans la situation vécue
-      par le persona."
+      aider à porter ça\", \"j'arrive tout de suite\") : il n'agit jamais physiquement
+      dans la situation vécue par le persona."
     - "Le bruit caractéristique du moyen de CAA appartient uniquement au champ
       instruction ; l'output est toujours dans un français impeccable (orthographe,
       conjugaison, syntaxe), même quand l'instruction du persona est bruitée ou
       télégraphique."
+    - "L'output se termine toujours par une ponctuation finale et referme tout
+      guillemet ouvert : jamais de troncature en cours de phrase ou en plein
+      guillemet."
 
 personas:
   - id: enfant_pictogrammes
@@ -295,12 +305,12 @@ themes:
       adulte_sla: votre médecin ou kinésithérapeute
       personne_agee_trouble_neuro: votre médecin
     contraintes_specifiques:
-      - "Rôle A (aide à communiquer avec le·la professionnel·le de santé) : l'assistant
-        n'est jamais présent au rendez-vous et ne connaît jamais l'état de santé réel
-        du persona ; il aide seulement à formuler ou clarifier la question à poser,
-        sans jamais donner lui-même de diagnostic, de posologie ou de conseil médical
-        direct."
-      - "Rôle B (question de connaissance générale, tous sous-thèmes) : l'assistant
+      - "Cas RENVOI (la réponse dépend de l'état de santé personnel du persona) :
+        l'assistant n'est jamais présent au rendez-vous et ne connaît jamais l'état de
+        santé réel du persona ; il dit seulement qu'il ne peut pas répondre et que
+        c'est au médecin de le faire, sans jamais donner lui-même de diagnostic, de
+        posologie ou de conseil médical direct, même partiel."
+      - "Cas RÉPONSE (connaissance médicale générale, tous sous-thèmes) : l'assistant
         peut expliquer factuellement ce qu'est un terme, un examen ou un type de
         traitement courant (ex. \"C'est quoi une prise de sang ?\", \"À quoi sert un
         examen de la vue ?\"), mais jamais donner un avis sur le cas personnel du
@@ -308,12 +318,16 @@ themes:
         persona est normal."
     quota_exemples: 120
     sous_themes:
+      # effets_secondaires et douleur_gene : 100 % RENVOI (un effet/une douleur
+      # ressentis sont toujours personnels, cf. contraintes_specifiques). Associé au
+      # 100 % RÉPONSE de clarification_traitement et preparation_rdv ci-dessous, ça
+      # donne ~50/50 au niveau du thème (4 sous-thèmes de quotas ~égaux, 2 de chaque
+      # côté), conformément à la consigne.
       - id: effets_secondaires
         description: Poser une question sur un effet secondaire ressenti.
-        # Rôle A forcé : un effet secondaire ressenti est toujours personnel, jamais
-        # une question de connaissance générale (cf. règle globale symptômes).
-        ratio_connaissance: 0
-        intentions_role_A:
+        ratio_reponse: 0
+        intentions_reponse: []
+        intentions_renvoi:
           - un effet inattendu ressenti peu après une prise
           - une gêne qui persiste depuis plusieurs jours
           - un changement physique remarqué depuis le début du traitement
@@ -321,13 +335,11 @@ themes:
           - une sensation inhabituelle qui inquiète
           - un effet qui empêche de faire une activité du quotidien
           - une envie de savoir si l'effet va s'arrêter tout seul
-        intentions_role_B: []
       - id: douleur_gene
         description: Décrire une douleur ou une gêne physique.
-        # Rôle A forcé : une douleur ressentie est toujours personnelle (cf. règle
-        # globale symptômes).
-        ratio_connaissance: 0
-        intentions_role_A:
+        ratio_reponse: 0
+        intentions_reponse: []
+        intentions_renvoi:
           - une douleur qui vient de commencer
           - une gêne qui revient régulièrement
           - une douleur qui s'aggrave avec un mouvement précis
@@ -335,35 +347,25 @@ themes:
           - une douleur difficile à localiser précisément
           - une gêne qui change d'intensité dans la journée
           - une douleur apparue après un effort
-        intentions_role_B: []
       - id: clarification_traitement
         description: Demander une clarification sur un traitement ou un examen.
-        # À arbitrer : proportion de rôle B (répartition 50/50 proposée).
-        ratio_connaissance: 0.5
-        intentions_role_A:
-          - le but du traitement qui m'est proposé
-          - la raison pour laquelle un examen m'est proposé
-          - ce que signifie un terme médical que j'ai entendu à mon sujet
-          - ce qui se passe si j'arrête mon traitement trop tôt
-        intentions_role_B:
+        ratio_reponse: 1
+        intentions_reponse:
           - ce qu'est un examen médical courant
           - la façon dont un examen se déroule habituellement
           - la durée habituelle d'un traitement
           - la différence entre deux formes de traitement
+          - la définition d'un terme médical courant
+        intentions_renvoi: []
       - id: preparation_rdv
         description: Préparer les questions à poser avant un rendez-vous.
-        # À arbitrer : proportion de rôle B (minoritaire proposée, la préparation d'un
-        # rendez-vous reste très majoritairement une démarche personnelle).
-        ratio_connaissance: 0.3
-        intentions_role_A:
-          - une inquiétude à exprimer avant mon rendez-vous
-          - un symptôme à ne pas oublier de mentionner
-          - le souhait de préparer mes questions à l'avance
-          - l'envie de savoir quoi dire en premier
-          - une question sur le déroulement de mon prochain rendez-vous
-        intentions_role_B:
+        ratio_reponse: 1
+        intentions_reponse:
           - ce qu'il faut apporter à un rendez-vous médical
           - la durée habituelle d'un rendez-vous médical
+          - la façon dont se déroule habituellement un premier rendez-vous chez un spécialiste
+          - s'il faut être à jeun avant certains rendez-vous médicaux
+        intentions_renvoi: []
 
   famille:
     label: Famille
@@ -378,64 +380,61 @@ themes:
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
+      # À arbitrer : ratio_reponse fixé à 0.5 uniformément sur les 4 sous-thèmes pour
+      # obtenir ~50/50 au niveau du thème, indépendamment de la taille des listes
+      # d'intentions (le tirage du cas et le tirage de l'intention sont deux étapes
+      # indépendantes dans generate.py).
       - id: exprimer_emotion
         description: Exprimer une émotion (joie, colère, fatigue, inquiétude) à un proche.
-        # Rôle A forcé : exprimer une émotion est toujours personnel et situationnel,
-        # jamais une question de connaissance générale.
-        ratio_connaissance: 0
-        intentions_role_A:
-          - une joie à partager
-          - une colère ou une frustration à exprimer
-          - une fatigue ressentie
-          - une inquiétude à propos de quelque chose
-          - un soulagement après un évènement
-          - une tristesse à partager
-          - une fierté à exprimer
-        intentions_role_B: []
+        ratio_reponse: 0.5
+        intentions_reponse:
+          - ce qu'est une émotion
+          - pourquoi on ressent parfois de la colère
+          - pourquoi c'est important de dire ce qu'on ressent à ses proches
+          - pourquoi on se sent parfois fatigué après une journée chargée
+        intentions_renvoi:
+          - pourquoi un proche précis a l'air fâché aujourd'hui
+          - si un proche va comprendre ce qu'on ressent maintenant
+          - quand un proche va rentrer pour en parler
+          - si un proche est disponible tout de suite pour en parler
       - id: demander_aide_tache
         description: "Demander de l'aide à un proche pour une tâche du quotidien, sans
           préciser la tâche par un détail non fourni (rester générique : \"une tâche à
           la maison\", jamais \"la vaisselle de ce soir\")."
-        # Rôle A forcé : demander de l'aide est toujours une démarche personnelle.
-        ratio_connaissance: 0
-        intentions_role_A:
-          - une aide pour une tâche physique difficile à faire seul
-          - une aide pour comprendre comment faire quelque chose
-          - une aide pour terminer une tâche commencée
-          - une aide pour une tâche qui prend beaucoup de temps
-          - une aide ponctuelle pour un imprévu domestique
-          - une aide pour porter ou déplacer quelque chose
-          - une aide pour organiser une tâche à plusieurs étapes
-        intentions_role_B: []
+        ratio_reponse: 0.5
+        intentions_reponse:
+          - pourquoi il est plus facile de faire une tâche à plusieurs
+          - pourquoi il est normal de demander de l'aide parfois
+        intentions_renvoi:
+          - si un proche précis est disponible pour aider maintenant
+          - combien de temps un proche va mettre pour venir aider
+          - si une tâche commencée par quelqu'un d'autre est déjà terminée
+          - qui, parmi les proches présents, peut aider maintenant
+          - si une tâche précise peut attendre un peu
       - id: raconter_journee
         description: Raconter sa journée ou un évènement vécu.
-        # Rôle A forcé : raconter sa propre journée est par nature personnel. C'est
-        # sur ce sous-thème qu'une intention de rôle B ("une difficulté rencontrée
-        # dans la journée") avait produit une hallucination de conseil médical
-        # ("j'ai mal à la tête") en contournant la règle globale symptômes.
-        ratio_connaissance: 0
-        intentions_role_A:
-          - un moment agréable vécu dans la journée
-          - une difficulté rencontrée dans la journée
-          - quelque chose d'inhabituel qui s'est passé
-          - une rencontre faite dans la journée
-          - un sentiment général sur la journée écoulée
-          - une activité réussie dans la journée
-          - quelque chose que le persona a appris dans la journée
-        intentions_role_B: []
+        ratio_reponse: 0.5
+        intentions_reponse:
+          - pourquoi on aime bien raconter sa journée à ses proches
+          - pourquoi une journée peut sembler plus longue qu'une autre
+        intentions_renvoi:
+          - si un proche précis a passé une bonne journée lui aussi
+          - ce qu'un proche a prévu de faire demain
+          - si un proche a le temps d'écouter le récit de la journée maintenant
+          - pourquoi un évènement précis de la journée s'est passé comme ça
+          - si quelqu'un d'autre était au courant d'un évènement précis
       - id: negocier_pause
         description: Négocier un moment calme ou une pause.
-        # Rôle A forcé : négocier une pause est toujours une démarche personnelle.
-        ratio_connaissance: 0
-        intentions_role_A:
-          - le besoin d'un moment de calme après une activité
-          - une pause avant de continuer une tâche
-          - le souhait de remettre quelque chose à plus tard
-          - une fatigue qui justifie une pause
-          - le besoin de silence pour se reposer
-          - une pause pour reprendre des forces
-          - le souhait de ralentir le rythme d'une activité
-        intentions_role_B: []
+        ratio_reponse: 0.5
+        intentions_reponse:
+          - pourquoi on a besoin de faire des pauses
+          - pourquoi il est important de se reposer après un effort
+          - combien de temps dure en général une pause pour se reposer
+          - ce qu'est la fatigue
+        intentions_renvoi:
+          - si un proche précis est d'accord pour attendre un peu
+          - combien de temps une activité précise va encore durer
+          - si une tâche précise peut être reprise plus tard
 
   vie_quotidienne:
     label: Vie quotidienne
@@ -452,62 +451,54 @@ themes:
     sous_themes:
       - id: demande_lieu_public
         description: Faire une demande dans un lieu public (restaurant, magasin, transport).
-        # Rôle A forcé : la réponse dépend toujours du lieu précis (jamais la même
-        # réponse "n'importe où"). C'est ce sous-thème qui avait produit des
-        # hallucinations de lieu ("les toilettes sont sur la gauche...").
-        ratio_connaissance: 0
-        intentions_role_A:
-          - demander où se trouve quelque chose dans un lieu public
-          - demander de l'aide pour effectuer un achat
-          - demander une information sur un service proposé
-          - demander de patienter ou d'être aidé plus lentement
-          - demander une précision sur un prix ou un horaire général
-          - demander de répéter une information mal comprise
-          - demander une place assise ou un aménagement
-        intentions_role_B: []
+        ratio_reponse: 0.5
+        intentions_reponse:
+          - ce qu'est un rayon dans un magasin
+          - comment fonctionne en général une caisse de supermarché
+          - pourquoi certains magasins ferment le dimanche
+          - ce qu'est un ticket de caisse
+        intentions_renvoi:
+          - où se trouve quelque chose dans un lieu précis
+          - si on peut être aidé pour un achat maintenant
+          - quel est le prix exact d'un article précis
+          - si une place assise est disponible ici maintenant
       - id: gerer_imprevu
         description: "Réagir à un imprévu (retard, changement, contretemps) sans détail
           précis sur les circonstances (pas de lieu, d'heure ni d'évènement inventé)."
-        # Rôle A forcé : un imprévu est par définition une circonstance particulière,
-        # jamais une question à réponse universelle.
-        ratio_connaissance: 0
-        intentions_role_A:
-          - signaler qu'on ne comprend pas ce qui se passe
-          - demander ce qu'il faut faire face à un imprévu
-          - demander de l'aide face à un changement soudain
-          - exprimer qu'un imprévu cause de la difficulté
-          - demander combien de temps un imprévu va durer
-          - demander une alternative face à un imprévu
-          - demander d'être prévenu si la situation change
-        intentions_role_B: []
+        ratio_reponse: 0.5
+        intentions_reponse:
+          - ce qu'est un imprévu
+          - pourquoi les transports ont parfois du retard en général
+          - pourquoi une file d'attente peut s'allonger
+        intentions_renvoi:
+          - combien de temps un imprévu précis va durer
+          - pourquoi un imprévu précis arrive maintenant
+          - s'il existe une solution de remplacement pour un imprévu précis
+          - si on va être prévenu quand la situation précise va changer
       - id: exprimer_preference_refus
         description: Exprimer une préférence ou un refus.
-        # Rôle A forcé : exprimer une préférence est toujours personnel.
-        ratio_connaissance: 0
-        intentions_role_A:
-          - exprimer une préférence entre deux options
-          - refuser poliment une proposition
-          - exprimer un besoin de plus de temps pour décider
-          - exprimer que quelque chose ne convient pas
-          - demander une autre option
-          - exprimer un accord partiel
-          - exprimer le souhait de ne pas faire quelque chose maintenant
-        intentions_role_B: []
+        ratio_reponse: 0.5
+        intentions_reponse:
+          - pourquoi il est normal de vouloir réfléchir avant de choisir
+          - ce qu'est une option
+          - pourquoi on peut changer d'avis
+        intentions_renvoi:
+          - si on peut avoir plus de temps pour décider maintenant
+          - si une autre option précise est disponible ici
+          - si un accord partiel est possible dans une situation précise
+          - jusqu'à quand on peut donner une réponse dans un cas précis
       - id: demander_itineraire
         description: Demander son chemin ou une information d'orientation.
-        # Rôle A forcé : un itinéraire dépend toujours du lieu et du trajet précis
-        # (jamais la même réponse "n'importe où"). C'est ce sous-thème qui avait
-        # produit des hallucinations d'orientation ("l'horloge à l'entrée...").
-        ratio_connaissance: 0
-        intentions_role_A:
-          - demander la direction à suivre pour aller quelque part
-          - demander si un trajet est accessible facilement
-          - demander combien de temps prend un trajet
-          - demander s'il existe un chemin plus simple
-          - demander de l'aide pour s'orienter
-          - demander si on est dans la bonne direction
-          - demander un repère pour se situer
-        intentions_role_B: []
+        ratio_reponse: 0.5
+        intentions_reponse:
+          - ce qu'est un plan de quartier
+          - comment lire un panneau de direction en général
+          - pourquoi certains trajets sont plus longs que d'autres en général
+        intentions_renvoi:
+          - quel chemin prendre pour un endroit précis
+          - si un trajet précis est accessible facilement
+          - combien de temps prend un trajet précis
+          - si on est dans la bonne direction maintenant
 
   ecole:
     label: École
@@ -520,83 +511,74 @@ themes:
     sous_themes:
       - id: question_enseignant
         description: Poser une question à un·e enseignant·e.
-        # À arbitrer : seul sous-thème école avec un vrai angle de connaissance
-        # générale (définition d'un mot), donc rôle B minoritaire mais non nul.
-        ratio_connaissance: 0.3
+        ratio_reponse: 0.5
         poids_personas:
           adulte_paralysie_cerebrale: 0
           adulte_aphasie_avc: 0
           adulte_sla: 0
           personne_agee_trouble_neuro: 0
-        intentions_role_A:
-          - demander une précision sur une consigne
-          - demander pourquoi une règle de classe existe
-          - demander combien de temps une activité va durer
-          - demander ce qu'il faut faire ensuite
-          - demander de répéter une explication plus lentement
-          - demander une information générale sur le fonctionnement de la classe
-        intentions_role_B:
+        intentions_reponse:
           - la définition d'un mot de vocabulaire courant
           - ce que veut dire un mot appris en classe
+          - ce qu'est une consigne en général
+          - pourquoi on doit suivre des règles en classe en général
+        intentions_renvoi:
+          - pourquoi une règle précise de la classe existe
+          - combien de temps va durer une activité précise
+          - ce qu'il faut faire ensuite dans une activité précise
+          - pourquoi le professeur a dit quelque chose de précis
       - id: aide_camarade
         description: "Demander ou proposer de l'aide à un·e camarade pour une activité
           scolaire, sans détail précis sur le contenu de l'activité (pas de matière,
           d'exercice ni de consigne inventés)."
-        # Rôle A forcé : demander/proposer de l'aide à un camarade est toujours
-        # situationnel.
-        ratio_connaissance: 0
+        ratio_reponse: 0.5
         poids_personas:
           adulte_paralysie_cerebrale: 0
           adulte_aphasie_avc: 0
           adulte_sla: 0
           personne_agee_trouble_neuro: 0
-        intentions_role_A:
-          - demander de l'aide pour une activité en cours
-          - proposer de l'aide à un camarade en difficulté
-          - demander qu'on répète une explication
-          - demander de partager du matériel
-          - proposer de faire une activité ensemble
-          - demander de l'aide pour se repérer dans une consigne
-          - demander à un camarade s'il a compris quelque chose
-        intentions_role_B: []
+        intentions_reponse:
+          - pourquoi c'est important de s'entraider en classe
+          - ce qu'est être un bon camarade
+        intentions_renvoi:
+          - si un camarade précis a besoin d'aide maintenant
+          - si un camarade précis a compris une consigne précise
+          - si du matériel précis est disponible à partager maintenant
+          - comment un camarade précis a résolu une difficulté précise
+          - si un camarade précis est d'accord pour faire une activité ensemble maintenant
       - id: activite_groupe
         description: Participer à une activité de groupe.
-        # Rôle A forcé : participer à une activité de groupe précise est toujours
-        # situationnel.
-        ratio_connaissance: 0
+        ratio_reponse: 0.5
         poids_personas:
           adulte_paralysie_cerebrale: 0
           adulte_aphasie_avc: 0
           adulte_sla: 0
           personne_agee_trouble_neuro: 0
-        intentions_role_A:
-          - proposer une idée pour l'activité de groupe
-          - demander comment se répartir les tâches
-          - exprimer le souhait de participer davantage
-          - demander à quel moment c'est son tour
-          - demander de l'aide pour comprendre le rôle de chacun
-          - exprimer une difficulté à suivre le rythme du groupe
-          - demander si tout le monde est d'accord sur une idée
-        intentions_role_B: []
+        intentions_reponse:
+          - ce qu'est un travail de groupe
+          - pourquoi on travaille parfois en groupe à l'école
+          - ce qu'est le rôle d'un rapporteur dans un groupe
+        intentions_renvoi:
+          - comment se répartir les tâches pour une activité précise
+          - à quel moment c'est son tour dans un groupe précis
+          - si tout le monde est d'accord sur une idée précise
+          - quel rôle chacun a dans un groupe précis
       - id: signaler_incomprehension
         description: "Signaler qu'on n'a pas compris quelque chose en classe (une
           consigne, une explication, une activité), sans détail précis sur le contenu
           (pas de matière ni de sujet inventés)."
-        # Rôle A forcé : signaler une incompréhension sur un contenu de classe précis
-        # est toujours situationnel. C'est ce sous-thème qui avait laissé fuiter
-        # l'exemple médical du persona ("langue verte") sous un angle de rôle B.
-        ratio_connaissance: 0
+        ratio_reponse: 0.5
         poids_personas:
           adulte_paralysie_cerebrale: 0
           adulte_aphasie_avc: 0
           adulte_sla: 0
           personne_agee_trouble_neuro: 0
-        intentions_role_A:
-          - signaler qu'une explication est allée trop vite
-          - demander qu'on reformule autrement
-          - signaler qu'un mot n'est pas compris
-          - demander une pause pour comprendre
-          - signaler qu'on a perdu le fil de l'explication
-          - demander un exemple pour mieux comprendre
-          - signaler qu'on a besoin d'aide sans savoir quoi demander précisément
-        intentions_role_B: []
+        intentions_reponse:
+          - pourquoi il est normal de ne pas tout comprendre du premier coup
+          - ce qu'est une explication
+          - pourquoi il est utile de poser des questions en classe
+        intentions_renvoi:
+          - pourquoi une explication précise est allée trop vite
+          - ce qu'un mot précis veut dire dans une explication précise
+          - pourquoi on a perdu le fil d'une explication précise
+          - à quel moment précis l'explication n'a plus été suivie

@@ -2,13 +2,15 @@
 
 Complètent les consignes de prompt.py par des contrôles code qui REJETTENT
 effectivement un candidat (au lieu de se contenter de le signaler) : les consignes
-seules dans le prompt se sont montrées insuffisantes lors de l'audit du dernier
-échantillon (démonstratifs non introduits, réassurances médicales interdites,
-engagement physique de l'assistant, délégation à l'impératif, frontière rôle A/B,
-quelques fautes de français récurrentes).
+seules dans le prompt se sont montrées insuffisantes lors des audits successifs
+(démonstratifs non introduits, réassurances/explications interdites dans le cas
+RENVOI, engagement physique de l'assistant, délégation à l'impératif, frontière
+RÉPONSE/RENVOI, grammaire non respectée par le persona, quelques fautes de français
+récurrentes, guillemets/ponctuation de fin manquants).
 
-Ces filtres sont des heuristiques regex volontairement simples : ils ne remplacent pas
-une relecture humaine ni un correcteur grammatical, mais ciblent des patrons concrets
+Ces filtres sont des heuristiques regex (et une heuristique de similarité d'embeddings
+pour la cohérence sémantique) volontairement simples : ils ne remplacent pas une
+relecture humaine ni un correcteur grammatical, mais ciblent des patrons concrets
 observés dans l'audit.
 """
 
@@ -57,10 +59,11 @@ _REASSURANCE_SYMPTOME_RE = re.compile(
 )
 
 
-def reponse_symptome_interdite(texte: str) -> bool:
-    """Détecte une réassurance ou une explication de cause à propos d'un symptôme :
-    toujours interdit pour l'assistant, qui ne dit jamais si c'est normal/grave/bénin
-    et n'en propose jamais la cause (règle globale symptômes, cf. SYSTEM_PROMPT)."""
+def explication_interdite_en_renvoi(texte: str) -> bool:
+    """Détecte une réassurance ou un début d'explication/cause dans un output du cas
+    RENVOI : toujours interdit, l'assistant ne dit jamais si c'est normal/grave/bénin
+    et ne propose jamais de cause, même partielle — il dit seulement qu'il ne peut
+    pas répondre et vers qui se tourner, rien d'autre (cf. SYSTEM_PROMPT)."""
     return bool(_REASSURANCE_SYMPTOME_RE.search(texte))
 
 
@@ -97,10 +100,10 @@ def imperatif_delegation(texte: str) -> bool:
 _COMMENT_DIRE_RE = re.compile(r"\bcomment\s+(dire|demander|expliquer|formuler)\b", re.IGNORECASE)
 
 
-def instruction_devrait_etre_role_a(instruction: str) -> bool:
+def instruction_devrait_etre_renvoi(instruction: str) -> bool:
     """Détecte une instruction de la forme "comment dire/demander/expliquer..." qui
-    relève toujours du rôle A (aide à formuler un message), jamais du rôle B, même si
-    le sujet semble général."""
+    dépend toujours de la personne concernée, donc relève toujours du cas RENVOI,
+    jamais du cas RÉPONSE, même si le sujet semble général."""
     return bool(_COMMENT_DIRE_RE.search(instruction))
 
 
@@ -120,9 +123,10 @@ _MODAL_PARTICIPE_FAUTIF_RE = re.compile(
 
 def incorrections_frequentes(texte: str) -> list[str]:
     """Détecte un sous-ensemble de fautes de français récurrentes observées dans
-    l'audit (élision manquante, confusion participe/infinitif après un modal).
-    Heuristique partielle : ne couvre pas les mots inventés ni les conjugaisons
-    fautives arbitraires, qui nécessiteraient un correcteur grammatical dédié."""
+    l'audit (élision manquante déjà réparée en amont par reparer_elisions si présente,
+    confusion participe/infinitif après un modal). Heuristique partielle : ne couvre
+    pas les mots inventés ni les conjugaisons fautives arbitraires, qui nécessiteraient
+    un correcteur grammatical dédié."""
     trouves: list[str] = []
     for m in _ELISION_MANQUANTE_RE.finditer(texte):
         trouves.append(m.group(0))
@@ -134,3 +138,68 @@ def incorrections_frequentes(texte: str) -> list[str]:
         if mot.lower() not in {"été", "fâché", "fatigué", "inquiété", "gêné"}:
             trouves.append(m.group(0))
     return trouves
+
+
+def reparer_elisions(texte: str) -> str:
+    """Répare automatiquement les élisions manquantes (ex. "me empêche" -> "m'empêche").
+    Correction déterministe et sûre (règle orthographique fixe, jamais un jugement
+    sémantique) : contrairement aux autres fautes détectées par incorrections_frequentes,
+    elle est corrigée plutôt que de faire rejeter tout l'output. C'est la passe de
+    "réparation" ; le reste (mots inventés, conjugaisons fautives) n'est que rejeté,
+    faute de pouvoir être corrigé de façon sûre sans appel modèle supplémentaire."""
+
+    def _corrige(m: re.Match[str]) -> str:
+        mot, suite = m.groups()
+        lettre = mot[0]
+        return f"{lettre}'{suite}"
+
+    return _ELISION_MANQUANTE_RE.sub(_corrige, texte)
+
+
+# Pronoms/auxiliaires/modaux/verbes courants signalant une structure sujet-verbe
+# reconnaissable. Liste non exhaustive (heuristique) : complétée avec quelques verbes
+# fréquents dans les instructions FALC (durer, coûter, marcher...) pour limiter les
+# faux positifs sur des phrases correctes mais hors du noyau pronoms/modaux.
+_MARQUEURS_SUJET_VERBE_RE = re.compile(
+    r"\b(je|j'|tu|il|elle|on|nous|vous|ils|elles|"
+    r"est|es|ai|as|a|suis|sommes|êtes|sont|"
+    r"peux|peut|peuvent|veux|veut|veulent|dois|doit|doivent|"
+    r"faut|vais|va|vont|dis|dit|sais|sait|"
+    r"voudrais|voudrait|aimerais|aimerait|pourriez|pourrais|souhaiterais|"
+    r"dure|durent|coûte|coûtent|marche|marchent|fonctionne|fonctionnent|"
+    r"arrive|arrivent|part|partent|commence|commencent|finit|finissent|"
+    r"change|changent|existe|existent|passe|passent|aide|aident|"
+    r"gêne|gênent|empêche|empêchent|permet|permettent)\b",
+    re.IGNORECASE,
+)
+
+
+def structure_sujet_verbe_manquante(instruction: str) -> bool:
+    """Détecte l'absence de toute structure sujet-verbe reconnaissable (aucun pronom
+    ni verbe conjugué/modal courant), à appliquer uniquement aux personas dont la
+    grammaire attendue est "correcte" (ex. adolescent_synthese_vocale) : ces personas
+    ne doivent jamais produire un enchaînement de mots sans lien grammatical (ex.
+    "Verdict arrêt à arrêt du médicament ?"). Ne pas appliquer aux personas
+    intentionnellement télégraphiques (ex. enfant_pictogrammes, adulte_aphasie_avc)."""
+    return not bool(_MARQUEURS_SUJET_VERBE_RE.search(instruction))
+
+
+_GUILLEMETS_PAIRES = [("«", "»"), ('"', '"')]
+
+
+def guillemets_ou_ponctuation_invalides(texte: str) -> bool:
+    """Détecte un output probablement tronqué : guillemets non appariés (« sans »,
+    nombre impair de ") ou absence de ponctuation finale (. ! ou »/" fermant)."""
+    texte_strip = texte.strip()
+    if not texte_strip:
+        return True
+
+    if texte_strip.count("«") != texte_strip.count("»"):
+        return True
+    if texte_strip.count('"') % 2 != 0:
+        return True
+
+    fin = texte_strip.rstrip("»\"' ")
+    if not fin:
+        return True
+    return fin[-1] not in {".", "!", "?"}
