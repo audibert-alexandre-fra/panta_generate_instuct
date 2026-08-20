@@ -47,3 +47,21 @@ def deduplicate(
         kept.append(i)
         kept_embeddings.append(emb)
     return kept
+
+
+def similarites_par_paire(
+    textes_a: list[str],
+    textes_b: list[str],
+    embedder: SentenceTransformer | None = None,
+) -> np.ndarray:
+    """Similarité cosinus terme à terme entre deux listes alignées de même longueur :
+    similarites_par_paire(a, b)[i] = cos(embed(a[i]), embed(b[i])). Utilisé pour
+    détecter une instruction générée trop proche de l'exemple_instruction fourni dans
+    le prompt (fuite de l'exemple du persona)."""
+    if not textes_a:
+        return np.array([])
+
+    embedder = embedder or get_embedder()
+    emb_a = embedder.encode(textes_a, normalize_embeddings=True, show_progress_bar=False)
+    emb_b = embedder.encode(textes_b, normalize_embeddings=True, show_progress_bar=False)
+    return np.sum(np.asarray(emb_a) * np.asarray(emb_b), axis=1)

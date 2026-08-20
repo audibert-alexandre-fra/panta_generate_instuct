@@ -31,10 +31,12 @@ class Persona(BaseModel):
     # singulier/pluriel de politesse) : "tu" pour les personas enfant/ado, "vous" pour
     # les personas adultes, afin d'éviter un tutoiement infantilisant d'adultes.
     registre_adresse: Literal["tu", "vous"]
-    # Plusieurs exemples (4-5) illustrant le bruit_caracteristique de ce persona ; un
-    # exemple est tiré au sort à chaque génération pour éviter que le modèle ne
+    # Exemples (4-5) illustrant le bruit_caracteristique de ce persona, PAR THÈME
+    # (clé = Theme.id) : un exemple à coloration médicale ne doit jamais fuiter dans un
+    # exemple de thème famille/école/vie_quotidienne. Un exemple est tiré au sort dans
+    # la liste du thème courant à chaque génération pour éviter que le modèle ne
     # s'ancre sur un patron unique.
-    exemples_instruction: list[str]
+    exemples_instruction_par_theme: dict[str, list[str]]
 
 
 class SousTheme(BaseModel):
@@ -43,11 +45,18 @@ class SousTheme(BaseModel):
     # Proportion (0-1) d'exemples de type B (question de connaissance générale,
     # autosuffisante) à générer pour ce sous-thème ; le reste est du type A (aide à
     # communiquer avec le tiers réel du thème). Cf. build_role_bloc dans prompts.py.
+    # Doit être 0 si intentions_role_B est vide (aucun angle de connaissance générale
+    # plausible pour ce sous-thème).
     ratio_connaissance: float = 0.0
-    # Angles concrets (5-10) sous lesquels la question/le message peut être posé pour
-    # ce sous-thème ; un angle est tiré au sort par exemple généré pour diversifier le
-    # contenu au-delà du seul persona et du seul rôle.
-    intentions: list[str] = Field(default_factory=list)
+    # Angles concrets pour le rôle A (situation vécue par le persona) : un angle est
+    # tiré au sort par exemple généré pour diversifier le contenu au-delà du seul
+    # persona.
+    intentions_role_A: list[str] = Field(default_factory=list)
+    # Angles concrets pour le rôle B (question de connaissance générale, autosuffisante
+    # : même réponse pour n'importe qui, n'importe où, n'importe quand). Doit rester
+    # vide si aucun angle de ce sous-thème n'est réellement indépendant du contexte
+    # personnel du persona.
+    intentions_role_B: list[str] = Field(default_factory=list)
     # Poids de compatibilité persona -> sous-thème (0 = combinaison interdite, ex. un
     # persona adulte pour un sous-thème "école"). Persona absent de ce mapping = poids
     # 1 (compatible, part standard). Cf. Taxonomy.poids_persona.
@@ -89,6 +98,10 @@ class ParametresGeneration(BaseModel):
     # Bornes du nombre de candidats surgénérés par cellule avant dédoublonnage.
     surgeneration_min: int = 12
     surgeneration_max: int = 15
+    # Seuil de similarité cosinus (embeddings) au-delà duquel une instruction générée
+    # est rejetée pour être trop proche de l'exemple_instruction fourni dans le prompt
+    # (évite qu'un exemple de persona ne soit recopié quasiment tel quel).
+    similarite_exemple_max: float = 0.88
 
 
 class Taxonomy(BaseModel):

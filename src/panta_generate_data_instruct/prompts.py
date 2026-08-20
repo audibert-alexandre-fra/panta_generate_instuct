@@ -38,7 +38,27 @@ ne pose une question de clarification que si la situation est réellement ambigu
 - Rôle B : l'assistant répond directement à une vraie question de connaissance \
 générale, simple et autosuffisante (tout le contexte nécessaire est déjà dans \
 l'instruction). La réponse doit apporter un contenu factuel réel, jamais une esquive \
-du type "je vais t'expliquer" sans rien expliquer.
+du type "je vais t'expliquer" sans rien expliquer. Une instruction ne relève du rôle B \
+que si elle a la même réponse pour n'importe qui, n'importe où, n'importe quand : si \
+la réponse dépend du lieu, du moment ou de la personne, c'est le rôle A. De même, une \
+instruction de la forme "comment dire...", "comment demander...", "comment \
+expliquer..." relève toujours du rôle A (même si le sujet semble général), jamais du \
+rôle B.
+
+Règle absolue, valable pour TOUS les thèmes et tous les sous-thèmes, y compris hors du \
+thème médical : toute instruction qui porte sur un symptôme, une sensation ou un effet \
+ressenti par le persona (douleur, fatigue, effet d'un traitement, sensation physique \
+inhabituelle...) relève toujours du rôle A. L'assistant ne dit jamais si c'est normal, \
+grave ou bénin, et n'en propose jamais la cause. Il aide seulement à formuler une ou \
+deux questions à poser à un médecin, et rappelle explicitement que seul un médecin \
+peut répondre. Exemple interdit, même hors du thème médical : à "Qu'est-ce que je peux \
+faire si j'ai mal à la tête ?", ne jamais répondre par une explication ou une liste de \
+remèdes ; proposer une formulation à adresser à un médecin.
+
+L'assistant ne répond jamais à la place du tiers réel avec qui le persona communique \
+(médecin, proche, enseignant·e, camarade...) : il ne s'engage jamais lui-même dans une \
+action physique (porter un objet, se déplacer, réexpliquer un cours à la place du \
+tiers...) et n'utilise jamais l'impératif pour renvoyer la tâche au persona.
 
 Registre : {registre}
 
@@ -78,10 +98,20 @@ persona) — jamais une simple liste de mots-clés juxtaposés sans lien grammat
 (mauvais exemples, à ne jamais produire : "couleur vert", "docteur pilule vert langue \
 pourquoi").
 - Auto-suffisance stricte : ne renvoie jamais à un référent que l'assistant n'a pas \
-reçu ("cet exercice", "la leçon", "ce document"...). Privilégie les questions \
-explicatives (pourquoi, comment, c'est quoi, est-ce que c'est normal, qu'est-ce qui se \
-passe si, combien de temps).
+reçu ("cet exercice", "la leçon", "ce document"...). Tout démonstratif (ce, cet, \
+cette, ces) doit obligatoirement pointer vers un mot déjà présent plus tôt dans \
+l'instruction elle-même ; sinon utilise un article indéfini ("un examen", "une \
+tâche") plutôt qu'un démonstratif. Privilégie les questions explicatives (pourquoi, \
+comment, c'est quoi, est-ce que c'est normal, qu'est-ce qui se passe si, combien de \
+temps).
 - N'invente aucun détail contextuel précis (date, heure, lieu, nom propre, numéro).
+- Respecte strictement le champ "Grammaire attendue" du persona ci-dessus : un \
+persona avec une grammaire correcte (conjugaison correcte, phrases complètes) ne \
+produit jamais un enchaînement de mots sans verbe conjugué ni lien grammatical, même \
+si l'instruction reste courte.
+- Reprends l'exemple de niveau de langage du persona uniquement comme référence de \
+style (longueur, bruit, grammaire) : ne le recopie jamais tel quel ni presque tel \
+quel, produis un contenu différent adapté au sous-thème et à l'angle demandés.
 {deja_retenues_bloc}
 Réponds uniquement avec l'objet JSON demandé : {{"instruction": "..."}}"""
 
@@ -101,16 +131,25 @@ préambule de l'output) : "{instruction}"
 {role_output_bloc}
 
 Règles impératives pour l'"output" :
-- Français correctement écrit, phrase(s) complète(s), simple(s), registre FALC, \
-adapté à l'âge et au profil du persona.
+- Français impeccable : orthographe et conjugaison correctes de chaque verbe, \
+phrase(s) complète(s), simple(s), registre FALC, adapté à l'âge et au profil du \
+persona. Le bruit (mots manquants, syntaxe télégraphique...) appartient uniquement à \
+l'instruction du persona ; il ne doit jamais apparaître dans l'output, même quand \
+l'instruction est bruitée ou télégraphique.
 - Ne recopie jamais l'instruction en préambule.
 - N'utilise jamais l'impératif pour renvoyer la tâche au persona (interdit par ex. \
 "Demande-lui toi-même", "Explique-lui ce que tu ressens") : l'assistant agit lui-même \
 en formulant une proposition, jamais en délégant.
+- Ne s'engage jamais physiquement à la place du tiers réel avec qui le persona \
+communique (interdit par ex. "je viens vous aider à porter ça", "j'arrive tout de \
+suite", "je vais te réexpliquer") : l'assistant aide à formuler ou transmettre un \
+message, il n'agit jamais lui-même dans la situation vécue par le persona.
 - Respecte strictement le registre d'adresse {persona_registre_adresse} envers le \
 persona, y compris dans les formulations candidates proposées.
 - N'invente aucun détail contextuel précis (date, heure, lieu, nom propre, numéro) et \
-aucun contenu que l'assistant n'a pas reçu dans l'instruction.
+aucun contenu que l'assistant n'a pas reçu dans l'instruction. Tout démonstratif (ce, \
+cet, cette, ces) doit pointer vers un mot déjà présent dans l'instruction ou plus tôt \
+dans l'output ; sinon utilise un article indéfini.
 - Respecte les éventuelles contraintes spécifiques au thème listées ci-dessus.
 
 Réponds uniquement avec l'objet JSON demandé : {{"output": "..."}}"""
@@ -127,7 +166,14 @@ L'"instruction" est une vraie question de connaissance générale, simple et \
 autosuffisante : tout ce qu'il faut pour y répondre est déjà dans la question, sans \
 référence à une situation ou un contenu externe non fourni (ex. "C'est quoi un \
 verbe ?", "Combien font 5 et 3 ?", "C'est quand l'automne ?", "Pourquoi le ciel est \
-bleu ?")."""
+bleu ?").
+Test à appliquer avant de produire l'instruction : est-ce qu'elle aurait exactement la \
+même réponse pour n'importe qui, n'importe où, n'importe quand ? Si la réponse dépend \
+du lieu, du moment ou de la situation personnelle du persona, ce n'est PAS une \
+instruction de rôle B (ex. interdit en rôle B : "Où sont les toilettes ?", "C'est \
+normal que la machine fasse ce bruit ?" — ce sont des questions de rôle A). N'utilise \
+jamais un tournure "comment dire...", "comment demander...", "comment expliquer..." : \
+cela relève toujours du rôle A."""
 
 
 ROLE_A_OUTPUT_BLOC_PROPOSITION = """Rôle de l'assistant pour cet exemple : RÔLE A — aider à communiquer avec {theme_interlocuteur}.
@@ -152,7 +198,12 @@ veux que je commence par la fin ou le début ?\""""
 
 ROLE_B_OUTPUT_BLOC = """Rôle de l'assistant pour cet exemple : RÔLE B — répondre à une question de connaissance générale.
 Donne une vraie réponse factuelle, courte, juste et adaptée à l'âge et au profil du \
-persona — jamais une esquive du type "je vais t'expliquer" sans contenu réel."""
+persona — jamais une esquive du type "je vais t'expliquer" sans contenu réel. La \
+réponse doit être valable pour n'importe qui, n'importe où, n'importe quand : si tu \
+constates qu'elle dépend en réalité du lieu, du moment ou de la situation personnelle \
+du persona, ne réponds jamais comme si tu connaissais ce contexte précis (interdit \
+par ex. "les toilettes sont sur la gauche", "c'est normal que la machine fasse ce \
+bruit")."""
 
 
 def build_system_prompt(style_guide: StyleGuide) -> str:

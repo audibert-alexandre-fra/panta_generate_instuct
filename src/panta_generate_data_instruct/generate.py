@@ -31,7 +31,15 @@ from pathlib import Path
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import StructuredOutputsParams
 
-from panta_generate_data_instruct.dedup import deduplicate
+from panta_generate_data_instruct.dedup import deduplicate, get_embedder, similarites_par_paire
+from panta_generate_data_instruct.filters import (
+    demonstratifs_non_introduits,
+    engagement_physique_assistant,
+    imperatif_delegation,
+    incorrections_frequentes,
+    instruction_devrait_etre_role_a,
+    reponse_symptome_interdite,
+)
 from panta_generate_data_instruct.prompts import (
     RoleType,
     build_instruction_prompt,
@@ -129,6 +137,8 @@ def _generate_instruction_pools(
 ) -> list[Candidate]:
     system_prompt = build_system_prompt(taxonomy.style_guide)
     seuil = taxonomy.parametres_generation.dedup_seuil_cosinus
+    seuil_exemple = taxonomy.parametres_generation.similarite_exemple_max
+    embedder = get_embedder()
     pools: dict[int, list[Candidate]] = {id(plan): [] for plan in plans}
     wave_size = {id(plan): max(1, math.ceil(plan.overgen_count / N_VAGUES)) for plan in plans}
 
@@ -143,12 +153,14 @@ def _generate_instruction_pools(
             deja_retenues = [c.instruction for c in pools[id(plan)]]
             for _ in range(wave_size[id(plan)]):
                 role = _pick_role(plan.sous_theme)
-                intention = (
-                    random.choice(plan.sous_theme.intentions)
-                    if plan.sous_theme.intentions
-                    else plan.sous_theme.description
+                intentions = (
+                    plan.sous_theme.intentions_role_B
+                    if role == "B"
+                    else plan.sous_theme.intentions_role_A
                 )
-                exemple_instruction = random.choice(plan.persona.exemples_instruction)
+                intention = random.choice(intentions) if intentions else plan.sous_theme.description
+                exemples_theme = plan.persona.exemples_instruction_par_theme.get(plan.theme.id, [])
+                exemple_instruction = random.choice(exemples_theme) if exemples_theme else plan.sous_theme.description
                 prompt = build_instruction_prompt(
                     plan.theme,
                     plan.sous_theme,
@@ -189,7 +201,40 @@ def _generate_instruction_pools(
             except ValueError as exc:
                 logger.warning("[%s] instruction invalide, candidat ignoré : %s", tag, exc)
                 continue
-            candidate.instruction = parsed.instruction
+
+            instruction = parsed.instruction
+
+            demonstratifs = demonstratifs_non_introduits(instruction)
+            if demonstratifs:
+                logger.warning(
+                    "[%s] instruction rejetée (démonstratif non introduit %s) : %s",
+                    tag, demonstratifs, instruction,
+                )
+                continue
+            if candidate.role == "B" and instruction_devrait_etre_role_a(instruction):
+                logger.warning(
+                    "[%s] instruction B rejetée (relève du rôle A, tournure "
+                    "\"comment dire/demander/expliquer\") : %s", tag, instruction,
+                )
+                continue
+
+            candidate.instruction = instruction
+
+        wave_candidates = [c for c in wave_candidates if c.instruction is not None]
+        if wave_candidates:
+            similarites = similarites_par_paire(
+                [c.instruction for c in wave_candidates],
+                [c.exemple_instruction for c in wave_candidates],
+                embedder=embedder,
+            )
+            for candidate, similarite in zip(wave_candidates, similarites):
+                if similarite >= seuil_exemple:
+                    tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.role}"
+                    logger.warning(
+                        "[%s] instruction rejetée (similarité %.2f avec l'exemple persona) : %s",
+                        tag, similarite, candidate.instruction,
+                    )
+                    candidate.instruction = None
 
         by_plan: dict[int, list[Candidate]] = {}
         for candidate in wave_candidates:
@@ -287,13 +332,35 @@ def _generate_outputs(
             raw_records.append(record)
             continue
 
-        record["output"] = parsed.output
+        output_text = parsed.output
+        rejet: str | None = None
+        demonstratifs = demonstratifs_non_introduits(f"{candidate.instruction} {output_text}")
+        if demonstratifs:
+            rejet = f"démonstratif non introduit {demonstratifs}"
+        elif candidate.role == "A" and reponse_symptome_interdite(output_text):
+            rejet = "réassurance/cause interdite sur un symptôme"
+        elif engagement_physique_assistant(output_text):
+            rejet = "engagement physique de l'assistant à la place du tiers"
+        elif imperatif_delegation(output_text):
+            rejet = "impératif de délégation vers le persona"
+        else:
+            fautes = incorrections_frequentes(output_text)
+            if fautes:
+                rejet = f"incorrections de français {fautes}"
+
+        if rejet is not None:
+            logger.warning("[%s] output rejeté (%s) : %s", tag, rejet, output_text)
+            record["error"] = rejet
+            raw_records.append(record)
+            continue
+
+        record["output"] = output_text
         raw_records.append(record)
 
         examples.append(
             InstructExample(
                 instruction=candidate.instruction,
-                output=parsed.output,
+                output=output_text,
                 theme=candidate.plan.theme.id,
                 sous_theme=candidate.plan.sous_theme.id,
                 persona_id=candidate.plan.persona.id,
