@@ -36,13 +36,17 @@ from vllm.sampling_params import StructuredOutputsParams
 from panta_generate_data_instruct.dedup import deduplicate, get_embedder, similarites_par_paire
 from panta_generate_data_instruct.filters import (
     demonstratifs_non_introduits,
+    destinataire_absent_de_la_liste,
     deuxieme_personne_designe_tiers,
     engagement_physique_assistant,
     explication_interdite_en_renvoi,
     guillemets_ou_ponctuation_invalides,
     imperatif_delegation,
     incorrections_frequentes,
+    interrogatif_incoherent_en_renvoi,
+    mot_anglais_isole,
     reparer_elisions,
+    reponse_evasive_ou_question,
     structure_sujet_verbe_manquante,
 )
 from panta_generate_data_instruct.prompts import (
@@ -73,10 +77,6 @@ OUTPUT_SCHEMA = GeneratedOutput.model_json_schema()
 COHERENCE_SCHEMA = CoherenceCheck.model_json_schema()
 
 logger = logging.getLogger(__name__)
-
-
-def _pick_cas(sous_theme: SousTheme) -> CasType:
-    return "reponse" if random.random() < sous_theme.ratio_reponse else "renvoi"
 
 
 def _exige_grammaire_correcte(persona: Persona) -> bool:
@@ -142,6 +142,7 @@ class CellPlan:
     theme: Theme
     sous_theme: SousTheme
     persona: Persona
+    cas: CasType
     target: int
     overgen_count: int
 
@@ -149,10 +150,13 @@ class CellPlan:
 @dataclass
 class Candidate:
     plan: CellPlan
-    cas: CasType
     intention: str
     exemple_instruction: str
     instruction: str | None = None
+
+    @property
+    def cas(self) -> CasType:
+        return self.plan.cas
 
 
 def _plan_cells(
@@ -161,11 +165,18 @@ def _plan_cells(
     surgeneration_min: int,
     surgeneration_max: int,
 ) -> list[CellPlan]:
-    """Calcule, pour chaque cellule compatible (poids > 0), le nombre d'exemples cible
-    et le nombre de candidats à surgénérer. Le volume cible par sous-thème (n_per_cell
-    x nombre de personas) est redistribué entre les personas compatibles au prorata de
-    leur poids ; les personas à poids 0 (ex. personas adultes pour le thème école) sont
-    exclus et leur part reportée sur les personas restants."""
+    """Calcule, pour chaque cellule compatible (poids > 0) et pour chaque cas
+    (RÉPONSE/RENVOI), le nombre d'exemples cible et le nombre de candidats à
+    surgénérer. Le volume cible par sous-thème (n_per_cell x nombre de personas) est
+    d'abord redistribué entre les personas compatibles au prorata de leur poids ; les
+    personas à poids 0 (ex. personas adultes pour le thème école) sont exclus et leur
+    part reportée sur les personas restants. Le quota de chaque persona est ensuite
+    lui-même réparti entre RÉPONSE et RENVOI selon sous_theme.ratio_reponse, arrondi à
+    l'entier : le cas devient une propriété FIXE du plan (plus un tirage aléatoire par
+    candidat), ce qui garantit le ratio à l'échelle de CHAQUE cellule et pas seulement
+    en moyenne globale (une cellule à 5 exemples et ratio_reponse=0.9 donne 5 ou 4
+    RÉPONSE selon l'arrondi, jamais une répartition qui s'écarte fortement de 90/10 par
+    hasard de tirage)."""
     plans: list[CellPlan] = []
     n_personas = len(taxonomy.personas)
     for theme in taxonomy.themes:
@@ -185,8 +196,13 @@ def _plan_cells(
                 target = round(total_target * w / total_weight)
                 if target <= 0:
                     continue
-                overgen_count = max(surgeneration_min, min(surgeneration_max, target * 3))
-                plans.append(CellPlan(theme, sous_theme, persona, target, overgen_count))
+                target_reponse = round(target * sous_theme.ratio_reponse)
+                target_renvoi = target - target_reponse
+                for cas, cas_target in (("reponse", target_reponse), ("renvoi", target_renvoi)):
+                    if cas_target <= 0:
+                        continue
+                    overgen_count = max(surgeneration_min, min(surgeneration_max, cas_target * 3))
+                    plans.append(CellPlan(theme, sous_theme, persona, cas, cas_target, overgen_count))
     return plans
 
 
@@ -215,23 +231,33 @@ def _generate_instruction_pools(
         for plan in active_plans:
             deja_retenues = [c.instruction for c in pools[id(plan)]]
             for _ in range(wave_size[id(plan)]):
-                cas = _pick_cas(plan.sous_theme)
                 intentions = (
                     plan.sous_theme.intentions_reponse
-                    if cas == "reponse"
+                    if plan.cas == "reponse"
                     else plan.sous_theme.intentions_renvoi
                 )
                 intention = random.choice(intentions) if intentions else plan.sous_theme.description
                 exemples_theme = plan.persona.exemples_instruction_par_theme.get(plan.theme.id, [])
                 exemple_instruction = random.choice(exemples_theme) if exemples_theme else plan.sous_theme.description
+                concept = None
+                type_question = None
+                if plan.cas == "reponse":
+                    concept = random.choice(plan.theme.concepts) if plan.theme.concepts else plan.sous_theme.description
+                    type_question = (
+                        random.choice(taxonomy.types_question)
+                        if taxonomy.types_question
+                        else "une question de définition"
+                    )
                 prompt = build_instruction_prompt(
                     plan.theme,
                     plan.sous_theme,
                     plan.persona,
-                    cas,
+                    plan.cas,
                     intention,
                     exemple_instruction,
                     deja_retenues,
+                    concept=concept,
+                    type_question=type_question,
                 )
                 conversations.append(
                     [
@@ -242,7 +268,6 @@ def _generate_instruction_pools(
                 wave_candidates.append(
                     Candidate(
                         plan=plan,
-                        cas=cas,
                         intention=intention,
                         exemple_instruction=exemple_instruction,
                     )
@@ -285,6 +310,11 @@ def _generate_instruction_pools(
                 logger.warning(
                     "[%s] instruction rejetée (le \"tu\"/\"vous\" désigne le tiers, "
                     "pas l'assistant) : %s", tag, instruction,
+                )
+                continue
+            if mot_anglais_isole(instruction):
+                logger.warning(
+                    "[%s] instruction rejetée (mot anglais isolé) : %s", tag, instruction,
                 )
                 continue
 
@@ -434,12 +464,22 @@ def _generate_outputs(
             rejet = f"démonstratif non introduit {demonstratifs}"
         elif candidate.cas == "renvoi" and explication_interdite_en_renvoi(output_text):
             rejet = "réassurance/explication interdite dans un output RENVOI"
+        elif candidate.cas == "renvoi" and destinataire_absent_de_la_liste(
+            output_text, candidate.plan.theme.interlocuteurs_pour(candidate.plan.persona.id)
+        ):
+            rejet = "destinataire absent de la liste (probablement inventé)"
+        elif candidate.cas == "renvoi" and interrogatif_incoherent_en_renvoi(candidate.instruction, output_text):
+            rejet = "mot interrogatif de la reprise incohérent avec l'instruction"
+        elif candidate.cas == "reponse" and reponse_evasive_ou_question(output_text):
+            rejet = "question de clarification ou annonce sans contenu dans un output RÉPONSE"
         elif engagement_physique_assistant(output_text):
             rejet = "engagement physique de l'assistant à la place du tiers"
         elif imperatif_delegation(output_text):
             rejet = "impératif de délégation vers le persona"
         elif guillemets_ou_ponctuation_invalides(output_text):
             rejet = "guillemets non appariés ou ponctuation finale manquante (probable troncature)"
+        elif mot_anglais_isole(output_text):
+            rejet = "mot anglais isolé"
         else:
             fautes = incorrections_frequentes(output_text)
             if fautes:

@@ -239,3 +239,103 @@ def deuxieme_personne_designe_tiers(instruction: str) -> bool:
     if _VOCATIF_TIERS_RE.search(instruction) and _DEUXIEME_PERSONNE_RE.search(instruction):
         return True
     return bool(_ATTRIBUTION_ETAT_TIERS_RE.search(instruction))
+
+
+# Mots-outils à ignorer lors de l'extraction du mot-clé d'un destinataire (déterminants,
+# pronoms) : on cherche le dernier mot significatif de la phrase, ex. "médecin" dans
+# "votre médecin", "fratrie" dans "votre fratrie".
+_STOPWORDS_DESTINATAIRE = {
+    "la", "le", "les", "de", "du", "des", "un", "une", "en", "ta", "ton",
+    "ma", "mon", "vos", "votre", "vous", "toi", "tu", "et",
+}
+
+
+def _mots_cles_destinataire(destinataire: str) -> set[str]:
+    """Un mot-clé par membre d'une désignation à choix de genre non décomposable (ex.
+    "ta maîtresse ou ton maître" -> {"maîtresse", "maître"}) : présent si l'UN des deux
+    est mentionné dans l'output."""
+    mots_cles: set[str] = set()
+    for partie in re.split(r"\s+ou\s+", destinataire, flags=re.IGNORECASE):
+        mots = re.findall(r"[a-zàâäéèêëïîôöùûüçœ]+", partie.lower())
+        significatifs = [m for m in mots if m not in _STOPWORDS_DESTINATAIRE and len(m) > 2]
+        if significatifs:
+            mots_cles.add(significatifs[-1])
+    return mots_cles
+
+
+def destinataire_absent_de_la_liste(output_text: str, destinataires: list[str]) -> bool:
+    """Détecte un output RENVOI qui ne mentionne aucun des destinataires fournis (cf.
+    Theme.interlocuteurs_pour) : signe d'un destinataire entièrement inventé (ex. "le
+    maire" quand la liste ne proposait que "l'agent"). Heuristique par mot-clé : ne
+    détecte PAS un destinataire de la liste enrichi d'une précision inventée (ex.
+    "l'agent de la mairie" reste détecté comme présent, puisque "agent" y figure) —
+    cette variante-là reste à la charge de la consigne de prompt ("recopie tel quel")."""
+    if not destinataires:
+        return False
+    texte_lower = output_text.lower()
+    for destinataire in destinataires:
+        mots_cles = _mots_cles_destinataire(destinataire)
+        if any(mot in texte_lower for mot in mots_cles):
+            return False
+    return True
+
+
+_INTERROGATIFS = {
+    "pourquoi": re.compile(r"\bpourquoi\b", re.IGNORECASE),
+    "comment": re.compile(r"\bcomment\b", re.IGNORECASE),
+    "combien": re.compile(r"\bcombien\b", re.IGNORECASE),
+    "quand": re.compile(r"\bquand\b", re.IGNORECASE),
+    "où": re.compile(r"\boù\b", re.IGNORECASE),
+    "quel": re.compile(r"\bquelle?s?\b", re.IGNORECASE),
+    "si": re.compile(r"\b(si|est-ce que|est-ce qu')\b", re.IGNORECASE),
+}
+
+
+def _premier_interrogatif(texte: str) -> str | None:
+    meilleur = None
+    meilleure_position = len(texte) + 1
+    for nom, regex in _INTERROGATIFS.items():
+        m = regex.search(texte)
+        if m and m.start() < meilleure_position:
+            meilleure_position = m.start()
+            meilleur = nom
+    return meilleur
+
+
+def interrogatif_incoherent_en_renvoi(instruction: str, output: str) -> bool:
+    """Détecte un output RENVOI dont la reprise change le mot interrogatif de
+    l'instruction (ex. instruction en "si...", reprise en "quand...") : la reprise doit
+    conserver le mot interrogatif d'origine sans en changer le sens (cf.
+    CAS_RENVOI_OUTPUT_BLOC dans prompts.py). Ne se déclenche que si un mot interrogatif
+    a été détecté des deux côtés, pour limiter les faux positifs."""
+    type_instruction = _premier_interrogatif(instruction)
+    type_output = _premier_interrogatif(output)
+    if type_instruction is None or type_output is None:
+        return False
+    return type_instruction != type_output
+
+
+_ANNONCE_SANS_CONTENU_RE = re.compile(
+    r"\bje (vais|dois) (te|vous) (expliquer|donner|dire)\b", re.IGNORECASE
+)
+
+
+def reponse_evasive_ou_question(output_text: str) -> bool:
+    """Détecte un output RÉPONSE qui se termine par une question adressée au persona
+    (au lieu de donner la réponse en entier) ou qui annonce une réponse sans jamais la
+    donner (ex. "je vais t'expliquer", "je dois te donner plus de détails")."""
+    fin = output_text.strip().rstrip("»\"' ")
+    if fin.endswith("?"):
+        return True
+    return bool(_ANNONCE_SANS_CONTENU_RE.search(output_text))
+
+
+_MOTS_ANGLAIS_RE = re.compile(r"\b(now|yes|please|sorry|today|tomorrow)\b", re.IGNORECASE)
+
+
+def mot_anglais_isole(texte: str) -> bool:
+    """Détecte un mot anglais isolé dans un texte censé être en français (ex. "now"
+    dans "Est-ce que quelqu'un a du papier à partager now ?"). Liste volontairement
+    courte et non ambiguë : exclut par ex. "ok"/"okay", couramment utilisés comme
+    emprunts en français familier."""
+    return bool(_MOTS_ANGLAIS_RE.search(texte))

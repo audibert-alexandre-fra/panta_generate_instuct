@@ -74,6 +74,12 @@ class Theme(BaseModel):
     # CAS_RENVOI_OUTPUT_BLOC dans prompts.py) ; le lexique de désignation doit coller
     # à l'âge du persona (ex. "ton enseignant·e" pour un enfant, jamais pour un adulte).
     interlocuteur_par_persona: dict[str, list[str]]
+    # Amorces lexicales concrètes (objets, phénomènes, lieux, activités du quotidien
+    # propres à ce thème) : un concept est tiré au sort par exemple du cas RÉPONSE pour
+    # ancrer la question dans le monde plutôt que dans un commentaire méta sur le
+    # sous-thème (ex. "un aimant" plutôt que "pourquoi on s'entraide"). Cf.
+    # CAS_REPONSE_INSTRUCTION_BLOC dans prompts.py.
+    concepts: list[str] = Field(default_factory=list)
     contraintes_specifiques: list[str] = Field(default_factory=list)
     quota_exemples: int
     sous_themes: list[SousTheme]
@@ -117,6 +123,12 @@ class Taxonomy(BaseModel):
     style_guide: StyleGuide
     personas: list[Persona]
     themes: list[Theme]
+    # Formes rhétoriques pour une question du cas RÉPONSE (définition, cause,
+    # procédure...), tirée au sort au même titre que l'intention et le concept. Liste
+    # globale (pas par thème) : ces formes sont indépendantes du domaine. Le type
+    # "durée" est délibérément absent : il produit systématiquement des valeurs
+    # numériques inventées (cf. CAS_REPONSE_OUTPUT_BLOC dans prompts.py).
+    types_question: list[str] = Field(default_factory=list)
     parametres_generation: ParametresGeneration = Field(default_factory=ParametresGeneration)
 
     @classmethod
@@ -127,6 +139,7 @@ class Taxonomy(BaseModel):
             style_guide=data["style_guide"],
             personas=data["personas"],
             themes=themes,
+            types_question=data.get("types_question", []),
             parametres_generation=data.get("parametres_generation", {}),
         )
 

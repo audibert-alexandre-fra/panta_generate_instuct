@@ -12,13 +12,26 @@
 # tourner (le destinataire varie selon le thème, cf. interlocuteur_par_persona). Le
 # critère de bascule n'est jamais le sujet mais la source de la réponse : dépend-elle
 # de cette personne, de ce lieu, de ce moment ? Si oui, RENVOI ; sinon, RÉPONSE.
+# Cible du jeu : 90 % RÉPONSE / 10 % RENVOI (ratio_reponse: 0.9 partout), appliqué au
+# niveau de CHAQUE cellule par generate.py (cf. CellPlan.cas dans _plan_cells), pas
+# seulement en moyenne globale.
+#
+# Pour le cas RÉPONSE, deux axes supplémentaires sont tirés au sort en plus de
+# l'intention (cf. generate._generate_instruction_pools) : un concept concret propre
+# au thème (`themes.*.concepts`, amorce lexicale pour ancrer la question dans le monde
+# plutôt que dans un commentaire méta sur le sous-thème) et un type de question
+# (`types_question`, global, forme rhétorique).
 
 parametres_generation:
   # Seuil de similarité cosinus (embeddings sentence-transformers) au-delà duquel deux
   # instructions du même sous-thème sont considérées comme des quasi-doublons.
   dedup_seuil_cosinus: 0.85
   # Bornes du nombre de candidats surgénérés par cellule (thème x sous-thème x
-  # persona) avant dédoublonnage et réduction au quota.
+  # persona x cas) avant dédoublonnage et réduction au quota. À noter : depuis que
+  # chaque cas (RÉPONSE/RENVOI) a son propre quota par cellule, un quota RENVOI de 1
+  # exemple déclenche quand même une surgénération de `surgeneration_min` candidats
+  # (12 par défaut) — potentiellement à revoir à la baisse pour éviter de surgénérer
+  # inutilement beaucoup sur des quotas RENVOI très faibles à 90/10.
   surgeneration_min: 12
   surgeneration_max: 15
   # Seuil de similarité cosinus au-delà duquel une instruction générée est rejetée
@@ -31,6 +44,9 @@ parametres_generation:
   # heuristique d'incohérence sémantique). À arbitrer : proxy imparfait par embeddings
   # généraliste, pas une vraie analyse sémantique.
   coherence_similarite_min: 0.20
+  # Seuil de similarité cosinus en-deçà duquel un output généré est rejeté pour être
+  # trop éloigné du sous-thème/de l'intention demandés.
+  pertinence_intention_min: 0.15
 
 style_guide:
   registre: FALC (Facile à Lire et à Comprendre)
@@ -73,10 +89,10 @@ style_guide:
       répondre sans accès à un référent qu'il n'a jamais reçu (\"cet exercice\", \"la
       leçon\", \"ce document\", \"cette leçon\"...). Privilégier les questions
       explicatives : pourquoi (cause), comment (procédure), c'est quoi (définition),
-      est-ce que c'est normal (norme), qu'est-ce qui se passe si (conséquence),
-      combien de temps (durée). Interdit : tout démonstratif ou défini renvoyant à un
-      objet non introduit dans l'instruction elle-même. Exemple interdit : \"Comprends
-      pas exercice, peux aider ?\"."
+      est-ce que c'est normal (norme), qu'est-ce qui se passe si (conséquence).
+      Interdit : tout démonstratif ou défini renvoyant à un objet non introduit dans
+      l'instruction elle-même. Exemple interdit : \"Comprends pas exercice, peux
+      aider ?\"."
     - "Le cas RÉPONSE s'applique seulement si la réponse est la même pour n'importe
       qui, n'importe où, n'importe quand ; sinon c'est le cas RENVOI."
     - "Dans le cas RENVOI, la première phrase de l'output nomme l'objet précis de la
@@ -88,6 +104,15 @@ style_guide:
       l'assistant ne peut pas répondre et une phrase indiquant vers qui se tourner :
       jamais d'avis sur normal/grave/bénin, jamais de cause ni d'explication
       partielle, quel que soit le thème (pas seulement le médical)."
+    - "Dans le cas RENVOI, la reprise conserve le mot interrogatif de l'instruction
+      sans jamais en changer le sens (si/pourquoi/comment/quand/où/quel/combien) ; le
+      destinataire choisi est toujours pris tel quel dans la liste fournie par le
+      thème, jamais énuméré, modifié ou complété par une précision inventée, et jamais
+      un destinataire absent de cette liste."
+    - "Dans le cas RÉPONSE, la réponse est donnée en entier : jamais de question
+      renvoyée au persona en fin d'output, jamais d'annonce d'une réponse qui ne
+      vient pas (interdit par ex. \"Je dois te donner plus de détails\"). Une question
+      sur une durée reçoit une réponse qualitative, jamais un chiffre inventé."
     - "Les outputs varient de forme d'un exemple à l'autre (avec ou sans court
       préambule, une ou plusieurs phrases, longueur variable) : aucun patron unique
       (ex. \"Tu veux que je t'aide à... ?\") ne doit se répéter systématiquement."
@@ -109,6 +134,19 @@ style_guide:
     - "L'output se termine toujours par une ponctuation finale et referme tout
       guillemet ouvert : jamais de troncature en cours de phrase ou en plein
       guillemet."
+
+# Formes rhétoriques pour une question du cas RÉPONSE, tirées au sort au même titre que
+# l'intention et le concept (cf. generate._generate_instruction_pools). Le type
+# "durée" est délibérément absent : il produit systématiquement des valeurs numériques
+# inventées (ex. "15 à 30 minutes", "plus d'un an").
+types_question:
+  - "une question de définition (ex. \"c'est quoi...\", \"qu'est-ce que...\")"
+  - "une question de cause (ex. \"pourquoi...\")"
+  - "une question de procédure (ex. \"comment on fait pour...\")"
+  - "une question de conséquence (ex. \"qu'est-ce qui se passe si...\")"
+  - "une question de comparaison (ex. \"quelle différence entre... et...\")"
+  - "une question de fonction (ex. \"à quoi ça sert...\")"
+  - "une question de norme (ex. \"est-ce que c'est normal de...\")"
 
 personas:
   - id: enfant_pictogrammes
@@ -307,6 +345,52 @@ themes:
       adulte_aphasie_avc: [votre médecin, votre orthophoniste]
       adulte_sla: [votre médecin, votre kinésithérapeute]
       personne_agee_trouble_neuro: [votre médecin]
+    # Amorces lexicales concrètes pour le cas RÉPONSE (≥ 40) : objets, notions et
+    # phénomènes médicaux courants, jamais un symptôme personnel du persona (ça reste
+    # le rôle des intentions_renvoi).
+    concepts:
+      - un stéthoscope
+      - une radiographie
+      - une prise de sang
+      - un pansement
+      - un microbe
+      - un virus
+      - une bactérie
+      - un vaccin
+      - de la fièvre
+      - un thermomètre
+      - un plâtre
+      - des béquilles
+      - un fauteuil roulant
+      - une ordonnance
+      - un comprimé
+      - un sirop médicamenteux
+      - une piqûre
+      - une allergie
+      - un rhume
+      - une infection
+      - un pansement adhésif
+      - un désinfectant
+      - une IRM
+      - un scanner
+      - une échographie
+      - le cœur
+      - les poumons
+      - le sang
+      - les os
+      - les muscles
+      - la peau
+      - un hôpital
+      - une salle d'attente
+      - une pharmacie
+      - un masque chirurgical
+      - des gants médicaux
+      - une cicatrice
+      - une vaccination
+      - un régime alimentaire
+      - le sommeil
+      - l'hygiène des mains
+      - un contrôle médical
     contraintes_specifiques:
       - "Cas RENVOI (la réponse dépend de l'état de santé personnel du persona) :
         l'assistant n'est jamais présent au rendez-vous et ne connaît jamais l'état de
@@ -321,129 +405,241 @@ themes:
         persona est normal."
     quota_exemples: 120
     sous_themes:
-      # effets_secondaires et douleur_gene : ratio_reponse à 0.3 (contraste à
-      # l'échelle de la cellule, pas seulement du thème : un sous-thème 100 % renvoi
-      # risque d'apprendre "sous-thème symptôme -> refus" plutôt que le vrai critère
-      # personne/lieu/moment). Ceci décale l'équilibre du thème vers ~65 % réponse /
-      # 35 % renvoi (à comparer avec clarification_traitement et preparation_rdv,
-      # 100 % réponse ci-dessous) : à arbitrer, cf. écart signalé en fin de réponse.
       - id: effets_secondaires
         description: Poser une question sur un effet secondaire ressenti.
-        ratio_reponse: 0.3
+        ratio_reponse: 0.9
         intentions_reponse:
           - ce qu'est un effet secondaire
           - pourquoi un médicament peut avoir des effets secondaires
           - où sont écrits les effets possibles d'un médicament
+          - ce qu'est une notice de médicament
+          - pourquoi certains médicaments doivent être pris avec de la nourriture
+          - ce qu'est une allergie à un médicament
+          - pourquoi deux médicaments peuvent interagir entre eux
+          - la différence entre un effet secondaire courant et un effet secondaire rare
+          - pourquoi il faut signaler un effet secondaire à un médecin
+          - ce qu'est une intolérance à un médicament
+          - pourquoi la même dose peut affecter différemment deux personnes
+          - ce qu'est un médicament générique
+          - pourquoi certains médicaments donnent envie de dormir
+          - ce qu'est une contre-indication
         intentions_renvoi:
           - un effet inattendu ressenti peu après une prise
           - une gêne qui persiste depuis plusieurs jours
           - un changement physique remarqué depuis le début du traitement
-          - une réaction après avoir pris deux médicaments en même temps
           - une sensation inhabituelle qui inquiète
-          - un effet qui empêche de faire une activité du quotidien
-          - une envie de savoir si l'effet va s'arrêter tout seul
       - id: douleur_gene
         description: Décrire une douleur ou une gêne physique.
-        ratio_reponse: 0.3
+        ratio_reponse: 0.9
         intentions_reponse:
           - ce qu'est une douleur chronique
           - pourquoi certaines douleurs sont difficiles à localiser
+          - ce qu'est une douleur aiguë
+          - pourquoi une douleur peut irradier vers une autre partie du corps
+          - ce qu'est un antalgique
+          - pourquoi le stress peut augmenter une douleur
+          - ce qu'est une contracture musculaire
+          - pourquoi il est utile de décrire une douleur avec des mots précis chez le médecin
+          - ce qu'est une inflammation
+          - pourquoi le froid ou le chaud peuvent soulager une douleur
+          - ce qu'est une douleur référée
+          - pourquoi certaines douleurs reviennent régulièrement
+          - ce qu'est un point de tension musculaire
         intentions_renvoi:
           - une douleur qui vient de commencer
           - une gêne qui revient régulièrement
           - une douleur qui s'aggrave quand on bouge
-          - une gêne qui empêche de dormir
           - une douleur difficile à localiser
-          - une gêne qui change d'intensité dans la journée
-          - une douleur apparue après un effort
       - id: clarification_traitement
         description: Demander une clarification sur un traitement ou un examen.
-        ratio_reponse: 1
+        ratio_reponse: 0.9
         intentions_reponse:
           - ce qu'est un examen médical courant
           - la façon dont un examen se déroule habituellement
-          - la durée habituelle d'un traitement
           - la différence entre deux formes de traitement
           - la définition d'un terme médical courant
-        intentions_renvoi: []
+          - ce qu'est une ordonnance
+          - pourquoi certains traitements se prennent à heure fixe
+          - ce qu'est un traitement générique
+          - la différence entre un comprimé et un sirop
+          - ce qu'est une cure de traitement
+          - pourquoi certains traitements demandent un suivi régulier
+          - ce qu'est un effet thérapeutique
+          - la différence entre un vaccin et un médicament
+          - ce qu'est une consultation de suivi
+          - pourquoi certains traitements sont arrêtés progressivement
+        intentions_renvoi:
+          - savoir pourquoi mon traitement a changé récemment
+          - savoir si mon prochain rendez-vous est confirmé
+          - savoir ce qu'un terme entendu à mon sujet signifie exactement
       - id: preparation_rdv
         description: Préparer les questions à poser avant un rendez-vous.
-        ratio_reponse: 1
+        ratio_reponse: 0.9
         intentions_reponse:
           - ce qu'il faut apporter à un rendez-vous médical
-          - la durée habituelle d'un rendez-vous médical
           - la façon dont se déroule habituellement un premier rendez-vous chez un spécialiste
           - s'il faut être à jeun avant certains rendez-vous médicaux
-        intentions_renvoi: []
+          - ce qu'est une salle d'attente
+          - ce qu'est une carte vitale
+          - pourquoi certains rendez-vous demandent une ordonnance au préalable
+          - ce qu'est un rendez-vous de suivi
+          - la différence entre un médecin généraliste et un spécialiste
+          - ce qu'il faut faire en cas d'empêchement pour un rendez-vous
+          - ce qu'est une salle de consultation
+          - pourquoi certains examens demandent une préparation particulière
+          - ce qu'est un compte rendu médical
+          - la différence entre une consultation et une visite à domicile
+        intentions_renvoi:
+          - savoir si mon rendez-vous de la semaine va durer longtemps
+          - savoir si le médecin va me poser une question précise cette fois-ci
+          - savoir si mon dossier a bien été transmis avant mon rendez-vous
 
   famille:
     label: Famille
     contexte: Échanges avec les proches (parents, fratrie, enfants, conjoint·e).
+    # "votre conjoint·e" (point médian) a été observé recopié tel quel dans des
+    # outputs : remplacé par "votre partenaire", gender-neutre sans ponctuation
+    # inclusive. "votre fratrie" ajouté partout où un frère/une sœur peut être
+    # concerné, pour qu'une instruction qui parle d'un frère ou d'une sœur ait un
+    # destinataire correspondant dans la liste (cf. CAS_RENVOI_OUTPUT_BLOC).
     interlocuteur_par_persona:
       enfant_pictogrammes: [tes parents]
       adolescent_synthese_vocale: [tes parents, ta fratrie]
-      adulte_paralysie_cerebrale: [vos parents, votre fratrie, votre conjoint·e]
-      adulte_aphasie_avc: [votre conjoint·e, vos enfants]
-      adulte_sla: [votre conjoint·e, vos enfants]
+      adulte_paralysie_cerebrale: [vos parents, votre fratrie, votre partenaire]
+      adulte_aphasie_avc: [votre partenaire, vos enfants, votre fratrie]
+      adulte_sla: [votre partenaire, vos enfants, votre fratrie]
       personne_agee_trouble_neuro: [vos enfants, vos proches]
+    concepts:
+      - un anniversaire
+      - un cadeau
+      - un repas de famille
+      - un animal de compagnie
+      - un chien
+      - un chat
+      - un jardin
+      - une plante
+      - la pluie
+      - la neige
+      - le soleil
+      - les saisons
+      - une photo de famille
+      - un album photo
+      - une recette de cuisine
+      - un gâteau
+      - une fête
+      - un jour férié
+      - un calendrier
+      - une bougie
+      - un jeu de société
+      - un puzzle
+      - la télévision
+      - un film
+      - la musique
+      - un instrument de musique
+      - une histoire racontée le soir
+      - un livre
+      - le ménage
+      - une machine à laver
+      - un aspirateur
+      - la vaisselle
+      - un frigo
+      - une table
+      - un lit
+      - une chambre
+      - un jouet
+      - un vélo
+      - une promenade
+      - un pique-nique
+      - les vacances
+      - une valise
+      - un arbre généalogique
+      - un bébé
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
-      # À arbitrer : ratio_reponse fixé à 0.5 uniformément sur les 4 sous-thèmes pour
-      # obtenir ~50/50 au niveau du thème, indépendamment de la taille des listes
-      # d'intentions (le tirage du cas et le tirage de l'intention sont deux étapes
-      # indépendantes dans generate.py).
       - id: exprimer_emotion
         description: Exprimer une émotion (joie, colère, fatigue, inquiétude) à un proche.
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         intentions_reponse:
           - ce qu'est une émotion
           - pourquoi on ressent parfois de la colère
           - pourquoi c'est important de dire ce qu'on ressent à ses proches
           - pourquoi on se sent parfois fatigué après une journée chargée
+          - ce qu'est la timidité
+          - pourquoi on peut se sentir triste sans raison précise
+          - ce qu'est l'empathie
+          - pourquoi on rougit parfois quand on est gêné
+          - ce qu'est la jalousie
+          - pourquoi rire fait du bien
+          - ce qu'est la nostalgie
+          - pourquoi pleurer peut soulager
+          - ce qu'est la confiance en soi
         intentions_renvoi:
           - savoir pourquoi un proche a l'air fâché aujourd'hui
           - savoir si un proche va comprendre ce qu'on ressent maintenant
           - savoir quand un proche va rentrer pour en parler
-          - savoir si un proche est disponible tout de suite pour en parler
       - id: demander_aide_tache
         description: "Demander de l'aide à un proche pour une tâche du quotidien, sans
           préciser la tâche par un détail non fourni (rester générique : \"une tâche à
           la maison\", jamais \"la vaisselle de ce soir\")."
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         intentions_reponse:
           - pourquoi il est plus facile de faire une tâche à plusieurs
           - pourquoi il est normal de demander de l'aide parfois
+          - ce qu'est l'entraide
+          - pourquoi certaines tâches demandent de la patience
+          - ce qu'est une tâche ménagère
+          - pourquoi il est utile de répartir les tâches dans une famille
+          - ce qu'est l'organisation d'une maison
+          - pourquoi ranger régulièrement évite d'accumuler du désordre
+          - ce qu'est la solidarité familiale
+          - pourquoi il est plus motivant de terminer une tâche avec quelqu'un
+          - ce qu'est une corvée
         intentions_renvoi:
           - savoir si un proche est disponible pour aider maintenant
           - savoir combien de temps un proche va mettre pour venir aider
-          - savoir si une tâche commencée par quelqu'un d'autre est déjà terminée
-          - savoir qui, parmi les proches présents, peut aider maintenant
           - savoir si ça peut encore attendre un peu
       - id: raconter_journee
         description: Raconter sa journée ou un évènement vécu.
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         intentions_reponse:
           - pourquoi on aime bien raconter sa journée à ses proches
           - pourquoi une journée peut sembler plus longue qu'une autre
+          - ce qu'est une routine quotidienne
+          - pourquoi certains souvenirs restent plus marquants que d'autres
+          - ce qu'est un imprévu dans une journée
+          - pourquoi partager un bon moment le rend encore meilleur
+          - ce qu'est une habitude
+          - pourquoi on se souvient mieux des journées différentes de d'habitude
+          - ce qu'est un moment marquant
+          - pourquoi raconter une difficulté peut aider à se sentir mieux
+          - ce qu'est une anecdote
+          - pourquoi certaines journées sont plus fatigantes que d'autres
         intentions_renvoi:
           - savoir si un proche a aussi passé une bonne journée aujourd'hui
           - savoir ce qu'un proche a prévu de faire demain
           - savoir si un proche est disponible pour écouter en ce moment
-          - savoir pourquoi ça s'est passé comme ça aujourd'hui
-          - savoir si quelqu'un d'autre était déjà au courant
       - id: negocier_pause
         description: Négocier un moment calme ou une pause.
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         intentions_reponse:
           - pourquoi on a besoin de faire des pauses
           - pourquoi il est important de se reposer après un effort
-          - combien de temps dure en général une pause pour se reposer
           - ce qu'est la fatigue
+          - pourquoi le corps a besoin de sommeil
+          - ce qu'est la concentration
+          - pourquoi on se fatigue plus vite quand on est concentré longtemps
+          - ce qu'est le repos
+          - pourquoi faire une pause peut aider à mieux repartir
+          - ce qu'est la relaxation
+          - pourquoi le calme aide à se reposer
+          - ce qu'est une sieste
+          - pourquoi il est plus dur de se concentrer en fin de journée
         intentions_renvoi:
           - savoir si un proche est d'accord pour attendre encore un peu
           - savoir combien de temps ça va encore durer
           - savoir si ça peut être repris plus tard
+
   vie_quotidienne:
     label: Vie quotidienne
     contexte: Situations de la vie courante hors cercle familial et scolaire.
@@ -454,77 +650,197 @@ themes:
       adulte_aphasie_avc: [la personne en face de vous, le vendeur, le serveur, l'agent]
       adulte_sla: [la personne en face de vous, le vendeur, le serveur, l'agent]
       personne_agee_trouble_neuro: [la personne en face de vous, le vendeur, le serveur, l'agent]
+    concepts:
+      - un caddie
+      - un ticket de caisse
+      - un code-barre
+      - une carte bancaire
+      - de la monnaie
+      - un billet de train
+      - un distributeur de billets
+      - un feu de circulation
+      - un passage piéton
+      - un trottoir
+      - un bus
+      - un métro
+      - un vélo en libre-service
+      - une file d'attente
+      - un parapluie
+      - un arrêt de bus
+      - un plan de ville
+      - une boîte aux lettres
+      - un facteur
+      - un colis
+      - une enseigne de magasin
+      - un rayon de supermarché
+      - une étiquette de prix
+      - un ascenseur
+      - un escalator
+      - une porte automatique
+      - un parking
+      - un horodateur
+      - une horloge publique
+      - un panneau de signalisation
+      - un GPS
+      - un téléphone portable
+      - un distributeur de boissons
+      - un banc public
+      - un parc
+      - une aire de jeux
+      - une fontaine
+      - la météo
+      - le vent
+      - un arc-en-ciel
+      - un embouteillage
+      - un jour de marché
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
       - id: demande_lieu_public
         description: Faire une demande dans un lieu public (restaurant, magasin, transport).
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         intentions_reponse:
           - ce qu'est un rayon dans un magasin
           - comment fonctionne en général une caisse de supermarché
           - pourquoi certains magasins ferment le dimanche
           - ce qu'est un ticket de caisse
+          - ce qu'est un code-barre
+          - pourquoi les prix sont parfois affichés en promotion
+          - ce qu'est une carte de fidélité
+          - pourquoi il y a des vigiles dans certains magasins
+          - ce qu'est un rayon libre-service
+          - pourquoi certains produits sont proches de la caisse
+          - ce qu'est un self-service dans un restaurant
+          - pourquoi les restaurants ont des menus affichés
+          - ce qu'est un pourboire
         intentions_renvoi:
           - savoir où se trouve quelque chose ici
           - savoir si on peut être aidé pour un achat maintenant
-          - savoir combien coûte ça
           - savoir si une place assise est disponible ici maintenant
       - id: gerer_imprevu
         description: "Réagir à un imprévu (retard, changement, contretemps) sans détail
           précis sur les circonstances (pas de lieu, d'heure ni d'évènement inventé)."
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         intentions_reponse:
           - ce qu'est un imprévu
           - pourquoi les transports ont parfois du retard en général
           - pourquoi une file d'attente peut s'allonger
+          - ce qu'est une grève des transports
+          - pourquoi il peut y avoir des travaux sur une route
+          - ce qu'est un embouteillage
+          - pourquoi la météo peut perturber les transports
+          - ce qu'est un itinéraire de secours
+          - pourquoi certains évènements sont annulés en cas de mauvais temps
+          - ce qu'est une panne
+          - pourquoi il est utile de prévoir une marge de temps avant un rendez-vous
+          - ce qu'est un plan B
         intentions_renvoi:
           - savoir combien de temps ça va encore durer
           - savoir pourquoi ça arrive maintenant
-          - savoir s'il existe une solution de remplacement maintenant
           - savoir si on va être prévenu quand ça va changer
       - id: exprimer_preference_refus
         description: Exprimer une préférence ou un refus.
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         intentions_reponse:
           - pourquoi il est normal de vouloir réfléchir avant de choisir
           - ce qu'est une option
           - pourquoi on peut changer d'avis
+          - ce qu'est une préférence
+          - pourquoi il est normal de dire non parfois
+          - ce qu'est un compromis
+          - pourquoi deux personnes peuvent avoir des goûts différents
+          - ce qu'est une hésitation
+          - pourquoi il est utile de comparer avant de choisir
+          - ce qu'est un choix par défaut
+          - pourquoi il est plus facile de décider avec plus d'informations
+          - ce qu'est une décision réfléchie
         intentions_renvoi:
           - savoir si on peut avoir plus de temps pour décider maintenant
           - savoir si une autre option est disponible ici
-          - savoir si un accord partiel est possible ici
           - savoir jusqu'à quand on peut encore donner une réponse
       - id: demander_itineraire
         description: Demander son chemin ou une information d'orientation.
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         intentions_reponse:
           - ce qu'est un plan de quartier
           - comment lire un panneau de direction en général
           - pourquoi certains trajets sont plus longs que d'autres en général
+          - ce qu'est un point de repère
+          - pourquoi il est utile de connaître un repère avant de partir
+          - ce qu'est une boussole
+          - pourquoi certains trajets sont plus accessibles que d'autres
+          - ce qu'est un raccourci
+          - pourquoi une carte est utile pour s'orienter
+          - ce qu'est un sens unique
+          - pourquoi certaines rues sont piétonnes
+          - ce qu'est une intersection
         intentions_renvoi:
           - savoir quel chemin prendre à partir d'ici
           - savoir si le trajet est accessible facilement
-          - savoir combien de temps ça prend
           - savoir si on est dans la bonne direction maintenant
+
   ecole:
     label: École
     contexte: "Vie scolaire : classe, enseignant·e, camarades."
     # "ta maîtresse ou ton maître" / "ton ou ta prof" désignent UNE seule personne de
     # genre inconnu (variante grammaticale, pas une énumération de personnes
-    # différentes) : ne pas les décomposer. "un camarade" est ajouté comme
-    # destinataire alternatif : une question qui porte sur un camarade (ex. dans
-    # aide_camarade) doit se renvoyer vers lui, pas systématiquement vers
-    # l'enseignant·e.
+    # différentes) : ne pas les décomposer. "un camarade" est un destinataire
+    # alternatif : une question qui porte sur un camarade (ex. dans aide_camarade) se
+    # renvoie vers lui, pas systématiquement vers l'enseignant·e — et inversement, une
+    # question de procédure ou d'autorité (ex. le tour de parole dans un groupe) se
+    # renvoie vers l'enseignant·e, pas vers un camarade au hasard.
     interlocuteur_par_persona:
       enfant_pictogrammes: [ta maîtresse ou ton maître, un camarade]
       adolescent_synthese_vocale: [ton ou ta prof, un camarade]
+    concepts:
+      - un cartable
+      - un cahier
+      - un stylo
+      - une gomme
+      - une règle graduée
+      - un tableau noir
+      - une craie
+      - un tableau blanc
+      - une trousse
+      - un livre de classe
+      - une bibliothèque
+      - une carte de géographie
+      - un globe terrestre
+      - un ordinateur
+      - une calculatrice
+      - l'alphabet
+      - un chiffre
+      - une addition
+      - une soustraction
+      - une carte du monde
+      - un pays
+      - un drapeau
+      - une langue étrangère
+      - un dictionnaire
+      - une récréation
+      - une cour d'école
+      - un ballon
+      - la cantine
+      - un plateau-repas
+      - un uniforme scolaire
+      - un bus scolaire
+      - un dessin
+      - une peinture
+      - un instrument de musique à l'école
+      - un exposé
+      - une note d'évaluation
+      - un bulletin scolaire
+      - les vacances scolaires
+      - la rentrée
+      - un emploi du temps
+      - une sortie scolaire
+      - un microscope
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
       - id: question_enseignant
         description: Poser une question à un·e enseignant·e.
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         poids_personas:
           adulte_paralysie_cerebrale: 0
           adulte_aphasie_avc: 0
@@ -535,16 +851,24 @@ themes:
           - ce que veut dire un mot appris en classe
           - ce qu'est une consigne en général
           - pourquoi on doit suivre des règles en classe en général
+          - ce qu'est un exercice
+          - pourquoi on fait des exercices à l'école
+          - ce qu'est une leçon
+          - pourquoi on prend des notes en classe
+          - ce qu'est un contrôle
+          - pourquoi il y a des évaluations à l'école
+          - ce qu'est une matière scolaire
+          - pourquoi l'école propose plusieurs matières différentes
+          - ce qu'est un devoir à la maison
         intentions_renvoi:
           - savoir pourquoi il y a une règle comme ça
-          - savoir combien de temps ça va encore durer
           - savoir ce qu'il faut faire ensuite maintenant
           - savoir pourquoi le professeur a dit ça
       - id: aide_camarade
         description: "Demander ou proposer de l'aide à un·e camarade pour une activité
           scolaire, sans détail précis sur le contenu de l'activité (pas de matière,
           d'exercice ni de consigne inventés)."
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         poids_personas:
           adulte_paralysie_cerebrale: 0
           adulte_aphasie_avc: 0
@@ -553,15 +877,24 @@ themes:
         intentions_reponse:
           - pourquoi c'est important de s'entraider en classe
           - ce qu'est être un bon camarade
+          - ce qu'est le travail en binôme
+          - pourquoi il est plus facile d'apprendre en s'expliquant les choses entre camarades
+          - ce qu'est le partage de matériel scolaire
+          - pourquoi il est utile de reformuler une explication pour quelqu'un d'autre
+          - ce qu'est l'amitié à l'école
+          - pourquoi certains élèves apprennent plus vite que d'autres sur certains sujets
+          - ce qu'est la patience
+          - pourquoi il est normal de ne pas être bon dans tout en même temps
+          - ce qu'est l'esprit d'équipe
+          - pourquoi partager du matériel évite le gaspillage
+          - ce qu'est l'écoute entre camarades
         intentions_renvoi:
           - savoir si son camarade a besoin d'aide en ce moment
           - savoir si son camarade a compris
-          - savoir si du matériel est disponible à partager maintenant
-          - savoir si son camarade a réussi à s'en sortir
           - savoir si son camarade est d'accord pour faire ça ensemble maintenant
       - id: activite_groupe
         description: Participer à une activité de groupe.
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         poids_personas:
           adulte_paralysie_cerebrale: 0
           adulte_aphasie_avc: 0
@@ -571,16 +904,24 @@ themes:
           - ce qu'est un travail de groupe
           - pourquoi on travaille parfois en groupe à l'école
           - ce qu'est le rôle d'un rapporteur dans un groupe
+          - pourquoi il est utile de répartir les rôles dans un groupe
+          - ce qu'est une idée collective
+          - pourquoi un groupe avance parfois plus vite qu'une personne seule
+          - ce qu'est un débat en classe
+          - pourquoi il est important d'écouter les idées des autres
+          - ce qu'est un consensus
+          - pourquoi un groupe peut avoir des avis différents
+          - ce qu'est la coopération
+          - pourquoi il est utile de faire un brouillon avant un exposé de groupe
         intentions_renvoi:
           - savoir comment se répartir les tâches maintenant
           - savoir si c'est bientôt son tour
           - savoir si tout le monde est d'accord maintenant
-          - savoir quel rôle chacun a maintenant
       - id: signaler_incomprehension
         description: "Signaler qu'on n'a pas compris quelque chose en classe (une
           consigne, une explication, une activité), sans détail précis sur le contenu
           (pas de matière ni de sujet inventés)."
-        ratio_reponse: 0.5
+        ratio_reponse: 0.9
         poids_personas:
           adulte_paralysie_cerebrale: 0
           adulte_aphasie_avc: 0
@@ -590,8 +931,16 @@ themes:
           - pourquoi il est normal de ne pas tout comprendre du premier coup
           - ce qu'est une explication
           - pourquoi il est utile de poser des questions en classe
+          - ce qu'est une reformulation
+          - pourquoi certains mots sont plus difficiles à comprendre que d'autres
+          - ce qu'est un exemple concret pour comprendre une notion
+          - pourquoi il est normal de devoir réécouter une explication
+          - ce qu'est une notion difficile
+          - pourquoi prendre des notes aide à mieux comprendre
+          - ce qu'est une pause pour se concentrer à nouveau
+          - pourquoi il est plus facile de comprendre avec un exemple qu'avec une règle seule
+          - ce qu'est un schéma pour expliquer une idée
         intentions_renvoi:
           - savoir pourquoi ça a été trop vite
           - savoir ce qu'un mot veut dire
-          - savoir pourquoi on a perdu le fil maintenant
           - savoir à quel moment on a décroché

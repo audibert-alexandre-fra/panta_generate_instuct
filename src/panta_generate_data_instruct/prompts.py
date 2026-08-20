@@ -186,10 +186,19 @@ Réponds uniquement avec l'objet JSON demandé : {{"output": "..."}}"""
 CAS_REPONSE_INSTRUCTION_BLOC = """Cas de cet exemple : RÉPONSE.
 L'"instruction" doit être une vraie question dont la réponse est exactement la même \
 pour n'importe qui, n'importe où, n'importe quand (ex. "C'est quoi un verbe ?", \
-"Combien font 5 et 3 ?", "Combien de temps dure un rendez-vous médical en général ?"). \
-Si en écrivant l'instruction tu te rends compte que la réponse dépendrait en réalité \
-de cette personne, de ce lieu ou de ce moment précis, ce n'est PAS ce cas : reformule \
-l'angle pour rester sur une vraie question de portée générale."""
+"Combien font 5 et 3 ?"). Si en écrivant l'instruction tu te rends compte que la \
+réponse dépendrait en réalité de cette personne, de ce lieu ou de ce moment précis, \
+ce n'est PAS ce cas : reformule pour rester sur une vraie question de portée générale.
+Concept concret sur lequel construire ta question EN PRIORITÉ : {concept}. Une \
+personne utilisatrice de CAA pose surtout des questions sur le monde (pourquoi il \
+pleut, c'est quoi un aimant, comment on fait pousser des tomates), pas seulement des \
+commentaires sur sa propre situation : pars de ce concept. Utilise l'angle indiqué \
+plus haut seulement comme cadre général si besoin, sans forcer un lien artificiel \
+entre le concept et cet angle.
+Type de question à produire : {type_question}. N'utilise jamais un type de question \
+qui appellerait une durée précise en chiffres ("combien de temps...", "pendant \
+combien de jours...") : ce type de question produit systématiquement des chiffres \
+inventés et n'est pas une des formes demandées ci-dessus."""
 
 CAS_RENVOI_INSTRUCTION_BLOC = """Cas de cet exemple : RENVOI.
 L'"instruction" porte sur quelque chose dont la réponse dépend de cette personne, de \
@@ -211,27 +220,44 @@ réponse doit être valable pour n'importe qui, n'importe où, n'importe quand :
 constates qu'elle dépend en réalité du lieu, du moment ou de la personne, ne réponds \
 jamais comme si tu connaissais ce contexte précis (interdit par ex. "les toilettes \
 sont sur la gauche", "c'est normal que la machine fasse ce bruit").
+La réponse est donnée EN ENTIER, sans question en retour et sans annonce d'une \
+réponse qui ne vient jamais : interdit par ex. "Peux-tu me dire laquelle tu ne \
+comprends pas ?", "Que veux-tu faire pour te sentir mieux ?", "Veux-tu un siège plus \
+calme ?", "Je dois te donner plus de détails".
+Si la question porte sur une durée, réponds en termes qualitatifs (ex. "plutôt \
+court", "ça dépend du besoin") : n'invente jamais de chiffre précis (interdit par ex. \
+"15 à 30 minutes", "entre quinze minutes et une heure", "plus d'un an").
 Consigne de forme pour cette réponse précise (varie d'un exemple à l'autre, à \
 respecter ici) : {format_directive}"""
 
 CAS_RENVOI_OUTPUT_BLOC = """Cas de cet exemple : RENVOI — l'assistant n'est pas en position de savoir.
 Structure attendue, rien d'autre : une phrase qui nomme l'objet précis de la question \
 (pas la question en général), suivie d'une phrase qui indique vers qui se tourner.
-La première phrase doit nommer l'objet précis de la question. Interdit (trop \
-générique) : "Je ne peux pas répondre à cela", "Je ne peux pas répondre à ça", "Je \
-n'ai pas cette information". Attendu : "Je ne sais pas pourquoi ta langue est verte", \
-"Je ne sais pas combien de temps le train va être en retard".
+La première phrase doit nommer l'objet précis de la question, ET CONSERVER LE MOT \
+INTERROGATIF DE L'INSTRUCTION sans jamais en changer le sens : une instruction en \
+"si..." se reprend en "si...", une instruction en "pourquoi..." se reprend en \
+"pourquoi...", jamais l'inverse ni un autre mot interrogatif. Interdit (trop \
+générique, ou mot interrogatif changé) : "Je ne peux pas répondre à cela", "Je ne \
+sais pas quand ta sœur a fini" (si la question était "si elle a fini"). Attendu : "Je \
+ne sais pas pourquoi ta langue est verte", "Je ne sais pas si le train va avoir \
+beaucoup de retard".
 Destinataires possibles pour ce thème et ce persona : {destinataires_possibles}. \
-Choisis un seul destinataire, celui qui est le plus pertinent pour cette question \
-précise (ex. une question à propos d'un camarade se renvoie vers ce camarade, pas \
-systématiquement vers l'enseignant·e) ; n'énumère jamais plusieurs destinataires et ne \
-reprends jamais de parenthèses.
+Choisis un seul destinataire DANS CETTE LISTE, celui qui correspond le mieux au \
+contenu de l'instruction (ex. une instruction qui parle d'un camarade se renvoie vers \
+le destinataire "camarade" de la liste, pas vers l'enseignant·e ; une instruction qui \
+parle d'une sœur se renvoie vers le destinataire correspondant à la fratrie, pas vers \
+le conjoint ou la conjointe). Recopie ce destinataire TEL QUEL, sans le modifier ni y \
+ajouter la moindre précision (interdit par ex. "l'agent de la mairie" si la liste ne \
+propose que "l'agent"). N'invente JAMAIS un destinataire absent de la liste. \
+N'énumère jamais plusieurs destinataires et ne reprends jamais de parenthèses ni de \
+point médian.
 Aucune formulation candidate, aucune explication partielle, aucun avis sur \
 normal/grave/bénin, aucune cause proposée, même partielle.
 Modèle de style ci-dessous pour le ton et la deuxième phrase uniquement (le \
 destinataire y est encore générique : remplace-le par le destinataire choisi, et \
 remplace toujours l'ouverture générique par une phrase qui nomme l'objet précis de \
-CETTE question, jamais mot pour mot) : "{variante_renvoi}\""""
+CETTE question en conservant son mot interrogatif, jamais mot pour mot) : \
+"{variante_renvoi}\""""
 
 
 # Variantes de la phrase "je ne peux pas répondre à ça", tirées au sort pour éviter
@@ -289,8 +315,13 @@ def build_instruction_prompt(
     intention: str,
     exemple_instruction: str,
     instructions_deja_retenues: list[str],
+    concept: str | None = None,
+    type_question: str | None = None,
 ) -> str:
-    cas_bloc = CAS_REPONSE_INSTRUCTION_BLOC if cas == "reponse" else CAS_RENVOI_INSTRUCTION_BLOC
+    if cas == "reponse":
+        cas_bloc = CAS_REPONSE_INSTRUCTION_BLOC.format(concept=concept, type_question=type_question)
+    else:
+        cas_bloc = CAS_RENVOI_INSTRUCTION_BLOC
 
     deja_retenues_bloc = ""
     if instructions_deja_retenues:
