@@ -4,9 +4,9 @@ Complètent les consignes de prompt.py par des contrôles code qui REJETTENT
 effectivement un candidat (au lieu de se contenter de le signaler) : les consignes
 seules dans le prompt se sont montrées insuffisantes lors des audits successifs
 (démonstratifs non introduits, réassurances/explications interdites dans le cas
-RENVOI, engagement physique de l'assistant, délégation à l'impératif, frontière
-RÉPONSE/RENVOI, grammaire non respectée par le persona, quelques fautes de français
-récurrentes, guillemets/ponctuation de fin manquants).
+RENVOI, engagement physique de l'assistant, délégation à l'impératif, grammaire non
+respectée par le persona, quelques fautes de français récurrentes,
+guillemets/ponctuation de fin manquants).
 
 Ces filtres sont des heuristiques regex (et une heuristique de similarité d'embeddings
 pour la cohérence sémantique) volontairement simples : ils ne remplacent pas une
@@ -97,16 +97,6 @@ def imperatif_delegation(texte: str) -> bool:
     return bool(_IMPERATIF_DELEGATION_RE.search(texte))
 
 
-_COMMENT_DIRE_RE = re.compile(r"\bcomment\s+(dire|demander|expliquer|formuler)\b", re.IGNORECASE)
-
-
-def instruction_devrait_etre_renvoi(instruction: str) -> bool:
-    """Détecte une instruction de la forme "comment dire/demander/expliquer..." qui
-    dépend toujours de la personne concernée, donc relève toujours du cas RENVOI,
-    jamais du cas RÉPONSE, même si le sujet semble général."""
-    return bool(_COMMENT_DIRE_RE.search(instruction))
-
-
 # Élision manquante : me/te/se/le/la/ne + mot commençant par une voyelle ou un h muet
 # (ex. "me empêche" au lieu de "m'empêche").
 _ELISION_MANQUANTE_RE = re.compile(
@@ -182,9 +172,6 @@ def structure_sujet_verbe_manquante(instruction: str) -> bool:
     "Verdict arrêt à arrêt du médicament ?"). Ne pas appliquer aux personas
     intentionnellement télégraphiques (ex. enfant_pictogrammes, adulte_aphasie_avc)."""
     return not bool(_MARQUEURS_SUJET_VERBE_RE.search(instruction))
-
-
-_GUILLEMETS_PAIRES = [("«", "»"), ('"', '"')]
 
 
 def guillemets_ou_ponctuation_invalides(texte: str) -> bool:

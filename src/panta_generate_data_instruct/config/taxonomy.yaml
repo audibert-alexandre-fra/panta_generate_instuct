@@ -78,9 +78,12 @@ style_guide:
       objet non introduit dans l'instruction elle-même. Exemple interdit : \"Comprends
       pas exercice, peux aider ?\"."
     - "Le cas RÉPONSE s'applique seulement si la réponse est la même pour n'importe
-      qui, n'importe où, n'importe quand ; sinon c'est le cas RENVOI, y compris pour
-      une instruction de la forme \"comment dire...\", \"comment demander...\",
-      \"comment expliquer...\" (qui dépend toujours de la personne concernée)."
+      qui, n'importe où, n'importe quand ; sinon c'est le cas RENVOI."
+    - "Dans le cas RENVOI, la première phrase de l'output nomme l'objet précis de la
+      question (jamais \"je ne peux pas répondre à cela/ça/ceci\", qui reste
+      générique) ; la spécificité qui justifie le renvoi vient toujours d'un
+      indexical (maintenant, ici, mon, ma, encore, aujourd'hui...), jamais d'un
+      détail inventé (interdit par ex. \"Comment Marie a résolu son problème ?\")."
     - "Dans le cas RENVOI, l'output ne contient rien d'autre qu'une phrase disant que
       l'assistant ne peut pas répondre et une phrase indiquant vers qui se tourner :
       jamais d'avis sur normal/grave/bénin, jamais de cause ni d'explication
@@ -298,12 +301,12 @@ themes:
     label: Médical
     contexte: Questions et échanges d'un·e patient·e avec un·e spécialiste (médecin, kiné, orthophoniste...).
     interlocuteur_par_persona:
-      enfant_pictogrammes: ton docteur
-      adolescent_synthese_vocale: ton médecin
-      adulte_paralysie_cerebrale: votre médecin ou kinésithérapeute
-      adulte_aphasie_avc: votre médecin ou orthophoniste
-      adulte_sla: votre médecin ou kinésithérapeute
-      personne_agee_trouble_neuro: votre médecin
+      enfant_pictogrammes: [ton docteur]
+      adolescent_synthese_vocale: [ton médecin]
+      adulte_paralysie_cerebrale: [votre médecin, votre kinésithérapeute]
+      adulte_aphasie_avc: [votre médecin, votre orthophoniste]
+      adulte_sla: [votre médecin, votre kinésithérapeute]
+      personne_agee_trouble_neuro: [votre médecin]
     contraintes_specifiques:
       - "Cas RENVOI (la réponse dépend de l'état de santé personnel du persona) :
         l'assistant n'est jamais présent au rendez-vous et ne connaît jamais l'état de
@@ -318,15 +321,19 @@ themes:
         persona est normal."
     quota_exemples: 120
     sous_themes:
-      # effets_secondaires et douleur_gene : 100 % RENVOI (un effet/une douleur
-      # ressentis sont toujours personnels, cf. contraintes_specifiques). Associé au
-      # 100 % RÉPONSE de clarification_traitement et preparation_rdv ci-dessous, ça
-      # donne ~50/50 au niveau du thème (4 sous-thèmes de quotas ~égaux, 2 de chaque
-      # côté), conformément à la consigne.
+      # effets_secondaires et douleur_gene : ratio_reponse à 0.3 (contraste à
+      # l'échelle de la cellule, pas seulement du thème : un sous-thème 100 % renvoi
+      # risque d'apprendre "sous-thème symptôme -> refus" plutôt que le vrai critère
+      # personne/lieu/moment). Ceci décale l'équilibre du thème vers ~65 % réponse /
+      # 35 % renvoi (à comparer avec clarification_traitement et preparation_rdv,
+      # 100 % réponse ci-dessous) : à arbitrer, cf. écart signalé en fin de réponse.
       - id: effets_secondaires
         description: Poser une question sur un effet secondaire ressenti.
-        ratio_reponse: 0
-        intentions_reponse: []
+        ratio_reponse: 0.3
+        intentions_reponse:
+          - ce qu'est un effet secondaire
+          - pourquoi un médicament peut avoir des effets secondaires
+          - où sont écrits les effets possibles d'un médicament
         intentions_renvoi:
           - un effet inattendu ressenti peu après une prise
           - une gêne qui persiste depuis plusieurs jours
@@ -337,14 +344,16 @@ themes:
           - une envie de savoir si l'effet va s'arrêter tout seul
       - id: douleur_gene
         description: Décrire une douleur ou une gêne physique.
-        ratio_reponse: 0
-        intentions_reponse: []
+        ratio_reponse: 0.3
+        intentions_reponse:
+          - ce qu'est une douleur chronique
+          - pourquoi certaines douleurs sont difficiles à localiser
         intentions_renvoi:
           - une douleur qui vient de commencer
           - une gêne qui revient régulièrement
-          - une douleur qui s'aggrave avec un mouvement précis
+          - une douleur qui s'aggrave quand on bouge
           - une gêne qui empêche de dormir
-          - une douleur difficile à localiser précisément
+          - une douleur difficile à localiser
           - une gêne qui change d'intensité dans la journée
           - une douleur apparue après un effort
       - id: clarification_traitement
@@ -371,12 +380,12 @@ themes:
     label: Famille
     contexte: Échanges avec les proches (parents, fratrie, enfants, conjoint·e).
     interlocuteur_par_persona:
-      enfant_pictogrammes: tes parents
-      adolescent_synthese_vocale: tes parents ou ta fratrie
-      adulte_paralysie_cerebrale: votre famille (parents, fratrie, conjoint·e)
-      adulte_aphasie_avc: votre famille (conjoint·e, enfants)
-      adulte_sla: votre famille (conjoint·e, enfants)
-      personne_agee_trouble_neuro: vos enfants ou vos proches
+      enfant_pictogrammes: [tes parents]
+      adolescent_synthese_vocale: [tes parents, ta fratrie]
+      adulte_paralysie_cerebrale: [vos parents, votre fratrie, votre conjoint·e]
+      adulte_aphasie_avc: [votre conjoint·e, vos enfants]
+      adulte_sla: [votre conjoint·e, vos enfants]
+      personne_agee_trouble_neuro: [vos enfants, vos proches]
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
@@ -393,7 +402,7 @@ themes:
           - pourquoi c'est important de dire ce qu'on ressent à ses proches
           - pourquoi on se sent parfois fatigué après une journée chargée
         intentions_renvoi:
-          - pourquoi un proche précis a l'air fâché aujourd'hui
+          - pourquoi un proche a l'air fâché aujourd'hui
           - si un proche va comprendre ce qu'on ressent maintenant
           - quand un proche va rentrer pour en parler
           - si un proche est disponible tout de suite pour en parler
@@ -406,11 +415,11 @@ themes:
           - pourquoi il est plus facile de faire une tâche à plusieurs
           - pourquoi il est normal de demander de l'aide parfois
         intentions_renvoi:
-          - si un proche précis est disponible pour aider maintenant
+          - si un proche est disponible pour aider maintenant
           - combien de temps un proche va mettre pour venir aider
           - si une tâche commencée par quelqu'un d'autre est déjà terminée
           - qui, parmi les proches présents, peut aider maintenant
-          - si une tâche précise peut attendre un peu
+          - si ça peut encore attendre un peu
       - id: raconter_journee
         description: Raconter sa journée ou un évènement vécu.
         ratio_reponse: 0.5
@@ -418,11 +427,11 @@ themes:
           - pourquoi on aime bien raconter sa journée à ses proches
           - pourquoi une journée peut sembler plus longue qu'une autre
         intentions_renvoi:
-          - si un proche précis a passé une bonne journée lui aussi
+          - si un proche a aussi passé une bonne journée aujourd'hui
           - ce qu'un proche a prévu de faire demain
           - si un proche a le temps d'écouter le récit de la journée maintenant
-          - pourquoi un évènement précis de la journée s'est passé comme ça
-          - si quelqu'un d'autre était au courant d'un évènement précis
+          - pourquoi ça s'est passé comme ça aujourd'hui
+          - si quelqu'un d'autre était déjà au courant
       - id: negocier_pause
         description: Négocier un moment calme ou une pause.
         ratio_reponse: 0.5
@@ -432,20 +441,20 @@ themes:
           - combien de temps dure en général une pause pour se reposer
           - ce qu'est la fatigue
         intentions_renvoi:
-          - si un proche précis est d'accord pour attendre un peu
-          - combien de temps une activité précise va encore durer
-          - si une tâche précise peut être reprise plus tard
+          - si un proche est d'accord pour attendre encore un peu
+          - combien de temps ça va encore durer
+          - si ça peut être repris plus tard
 
   vie_quotidienne:
     label: Vie quotidienne
     contexte: Situations de la vie courante hors cercle familial et scolaire.
     interlocuteur_par_persona:
-      enfant_pictogrammes: la personne en face de toi (vendeur, serveur, passant...)
-      adolescent_synthese_vocale: la personne en face de toi (vendeur, serveur, agent de transport...)
-      adulte_paralysie_cerebrale: la personne en face de vous (vendeur, serveur, agent de transport...)
-      adulte_aphasie_avc: la personne en face de vous (vendeur, serveur, agent de transport...)
-      adulte_sla: la personne en face de vous (vendeur, serveur, agent de transport...)
-      personne_agee_trouble_neuro: la personne en face de vous (vendeur, serveur, agent de transport...)
+      enfant_pictogrammes: [la personne en face de toi, le vendeur, le serveur]
+      adolescent_synthese_vocale: [la personne en face de toi, le vendeur, le serveur, l'agent]
+      adulte_paralysie_cerebrale: [la personne en face de vous, le vendeur, le serveur, l'agent]
+      adulte_aphasie_avc: [la personne en face de vous, le vendeur, le serveur, l'agent]
+      adulte_sla: [la personne en face de vous, le vendeur, le serveur, l'agent]
+      personne_agee_trouble_neuro: [la personne en face de vous, le vendeur, le serveur, l'agent]
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
@@ -458,9 +467,9 @@ themes:
           - pourquoi certains magasins ferment le dimanche
           - ce qu'est un ticket de caisse
         intentions_renvoi:
-          - où se trouve quelque chose dans un lieu précis
+          - où se trouve quelque chose ici
           - si on peut être aidé pour un achat maintenant
-          - quel est le prix exact d'un article précis
+          - combien coûte ça
           - si une place assise est disponible ici maintenant
       - id: gerer_imprevu
         description: "Réagir à un imprévu (retard, changement, contretemps) sans détail
@@ -471,10 +480,10 @@ themes:
           - pourquoi les transports ont parfois du retard en général
           - pourquoi une file d'attente peut s'allonger
         intentions_renvoi:
-          - combien de temps un imprévu précis va durer
-          - pourquoi un imprévu précis arrive maintenant
-          - s'il existe une solution de remplacement pour un imprévu précis
-          - si on va être prévenu quand la situation précise va changer
+          - combien de temps ça va encore durer
+          - pourquoi ça arrive maintenant
+          - s'il existe une solution de remplacement maintenant
+          - si on va être prévenu quand ça va changer
       - id: exprimer_preference_refus
         description: Exprimer une préférence ou un refus.
         ratio_reponse: 0.5
@@ -484,9 +493,9 @@ themes:
           - pourquoi on peut changer d'avis
         intentions_renvoi:
           - si on peut avoir plus de temps pour décider maintenant
-          - si une autre option précise est disponible ici
-          - si un accord partiel est possible dans une situation précise
-          - jusqu'à quand on peut donner une réponse dans un cas précis
+          - si une autre option est disponible ici
+          - si un accord partiel est possible ici
+          - jusqu'à quand on peut encore donner une réponse
       - id: demander_itineraire
         description: Demander son chemin ou une information d'orientation.
         ratio_reponse: 0.5
@@ -495,17 +504,23 @@ themes:
           - comment lire un panneau de direction en général
           - pourquoi certains trajets sont plus longs que d'autres en général
         intentions_renvoi:
-          - quel chemin prendre pour un endroit précis
-          - si un trajet précis est accessible facilement
-          - combien de temps prend un trajet précis
+          - quel chemin prendre à partir d'ici
+          - si le trajet est accessible facilement
+          - combien de temps ça prend
           - si on est dans la bonne direction maintenant
 
   ecole:
     label: École
     contexte: "Vie scolaire : classe, enseignant·e, camarades."
+    # "ta maîtresse ou ton maître" / "ton ou ta prof" désignent UNE seule personne de
+    # genre inconnu (variante grammaticale, pas une énumération de personnes
+    # différentes) : ne pas les décomposer. "un camarade" est ajouté comme
+    # destinataire alternatif : une question qui porte sur un camarade (ex. dans
+    # aide_camarade) doit se renvoyer vers lui, pas systématiquement vers
+    # l'enseignant·e.
     interlocuteur_par_persona:
-      enfant_pictogrammes: ta maîtresse ou ton maître
-      adolescent_synthese_vocale: ton ou ta prof
+      enfant_pictogrammes: [ta maîtresse ou ton maître, un camarade]
+      adolescent_synthese_vocale: [ton ou ta prof, un camarade]
     contraintes_specifiques: []
     quota_exemples: 120
     sous_themes:
@@ -523,10 +538,10 @@ themes:
           - ce qu'est une consigne en général
           - pourquoi on doit suivre des règles en classe en général
         intentions_renvoi:
-          - pourquoi une règle précise de la classe existe
-          - combien de temps va durer une activité précise
-          - ce qu'il faut faire ensuite dans une activité précise
-          - pourquoi le professeur a dit quelque chose de précis
+          - pourquoi il y a une règle comme ça
+          - combien de temps ça va encore durer
+          - ce qu'il faut faire ensuite maintenant
+          - pourquoi le professeur a dit ça
       - id: aide_camarade
         description: "Demander ou proposer de l'aide à un·e camarade pour une activité
           scolaire, sans détail précis sur le contenu de l'activité (pas de matière,
@@ -541,11 +556,11 @@ themes:
           - pourquoi c'est important de s'entraider en classe
           - ce qu'est être un bon camarade
         intentions_renvoi:
-          - si un camarade précis a besoin d'aide maintenant
-          - si un camarade précis a compris une consigne précise
-          - si du matériel précis est disponible à partager maintenant
-          - comment un camarade précis a résolu une difficulté précise
-          - si un camarade précis est d'accord pour faire une activité ensemble maintenant
+          - si son camarade a besoin d'aide maintenant
+          - si son camarade a compris
+          - si du matériel est disponible à partager maintenant
+          - si son camarade a réussi à s'en sortir
+          - si son camarade est d'accord pour faire ça ensemble maintenant
       - id: activite_groupe
         description: Participer à une activité de groupe.
         ratio_reponse: 0.5
@@ -559,10 +574,10 @@ themes:
           - pourquoi on travaille parfois en groupe à l'école
           - ce qu'est le rôle d'un rapporteur dans un groupe
         intentions_renvoi:
-          - comment se répartir les tâches pour une activité précise
-          - à quel moment c'est son tour dans un groupe précis
-          - si tout le monde est d'accord sur une idée précise
-          - quel rôle chacun a dans un groupe précis
+          - comment se répartir les tâches maintenant
+          - si c'est bientôt son tour
+          - si tout le monde est d'accord maintenant
+          - quel rôle chacun a maintenant
       - id: signaler_incomprehension
         description: "Signaler qu'on n'a pas compris quelque chose en classe (une
           consigne, une explication, une activité), sans détail précis sur le contenu
@@ -578,7 +593,7 @@ themes:
           - ce qu'est une explication
           - pourquoi il est utile de poser des questions en classe
         intentions_renvoi:
-          - pourquoi une explication précise est allée trop vite
-          - ce qu'un mot précis veut dire dans une explication précise
-          - pourquoi on a perdu le fil d'une explication précise
-          - à quel moment précis l'explication n'a plus été suivie
+          - pourquoi ça a été trop vite
+          - ce qu'un mot veut dire
+          - pourquoi on a perdu le fil maintenant
+          - à quel moment on a décroché

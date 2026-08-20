@@ -10,8 +10,10 @@ SousTheme.poids_personas) :
    persona dans l'instruction.
 2. Les instructions sont surgénérées (parametres_generation.surgeneration_min/max) en
    plusieurs vagues ; chaque vague reçoit la liste des instructions déjà retenues pour
-   la cellule (consigne : ne pas y ressembler), puis un dédoublonnage sémantique
-   (dedup.py) réduit le pool avant la vague suivante.
+   la cellule (consigne : ne pas y ressembler), passe par un troisième appel modèle de
+   validation binaire de cohérence sémantique (_filtrer_coherence_semantique, qui
+   écarte le charabia avant la génération de l'output), puis un dédoublonnage
+   sémantique (dedup.py) réduit le pool avant la vague suivante.
 3. Le pool final est réduit au quota de la cellule (dérivé du poids de compatibilité
    persona x sous-thème).
 4. Un dernier dédoublonnage sémantique s'applique à l'intérieur de chaque sous-thème,
@@ -39,12 +41,13 @@ from panta_generate_data_instruct.filters import (
     guillemets_ou_ponctuation_invalides,
     imperatif_delegation,
     incorrections_frequentes,
-    instruction_devrait_etre_renvoi,
     reparer_elisions,
     structure_sujet_verbe_manquante,
 )
 from panta_generate_data_instruct.prompts import (
+    COHERENCE_SYSTEM_PROMPT,
     CasType,
+    build_coherence_check_prompt,
     build_instruction_prompt,
     build_output_prompt,
     build_system_prompt,
@@ -52,6 +55,7 @@ from panta_generate_data_instruct.prompts import (
     choisir_variante_renvoi,
 )
 from panta_generate_data_instruct.schemas import (
+    CoherenceCheck,
     GeneratedInstruction,
     GeneratedOutput,
     InstructExample,
@@ -65,6 +69,7 @@ DEFAULT_MODEL = "Qwen/Qwen3-8B"
 N_VAGUES = 3
 INSTRUCTION_SCHEMA = GeneratedInstruction.model_json_schema()
 OUTPUT_SCHEMA = GeneratedOutput.model_json_schema()
+COHERENCE_SCHEMA = CoherenceCheck.model_json_schema()
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +80,53 @@ def _pick_cas(sous_theme: SousTheme) -> CasType:
 
 def _exige_grammaire_correcte(persona: Persona) -> bool:
     return "correct" in persona.grammaire.lower()
+
+
+def _filtrer_coherence_semantique(
+    llm: LLM,
+    candidates: list[Candidate],
+    max_tokens: int,
+) -> None:
+    """Appel de validation binaire au modèle enseignant, entre les deux passes.
+    Contrairement au filtre par similarité d'embeddings (qui détecte une dérive
+    thématique mais laisse passer un charabia thématiquement proche, ex. "Combien de
+    temps pour enfiler la ville ?"), cet appel cible le non-sens véritable. Mute
+    `candidate.instruction` à None pour les candidats rejetés (écarté avant la
+    génération de l'output). Température fixée à 0 : c'est une vérification, pas une
+    génération créative."""
+    a_verifier = [c for c in candidates if c.instruction is not None]
+    if not a_verifier:
+        return
+
+    conversations = [
+        [
+            {"role": "system", "content": COHERENCE_SYSTEM_PROMPT},
+            {"role": "user", "content": build_coherence_check_prompt(c.instruction)},
+        ]
+        for c in a_verifier
+    ]
+    sampling_params = SamplingParams(
+        temperature=0.0,
+        max_tokens=max_tokens,
+        structured_outputs=StructuredOutputsParams(json=COHERENCE_SCHEMA),
+    )
+    outputs = llm.chat(conversations, sampling_params=sampling_params)
+
+    for candidate, output in zip(a_verifier, outputs):
+        text = output.outputs[0].text
+        tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.cas}"
+        try:
+            parsed = CoherenceCheck.model_validate_json(text)
+        except ValueError as exc:
+            logger.warning("[%s] vérification de cohérence invalide, candidat ignoré : %s", tag, exc)
+            candidate.instruction = None
+            continue
+        if not parsed.sens:
+            logger.warning(
+                "[%s] instruction rejetée (non-sens détecté par le modèle) : %s",
+                tag, candidate.instruction,
+            )
+            candidate.instruction = None
 
 
 def build_llm(model: str = DEFAULT_MODEL, enforce_eager: bool = True, **llm_kwargs) -> LLM:
@@ -221,12 +273,6 @@ def _generate_instruction_pools(
                     tag, demonstratifs, instruction,
                 )
                 continue
-            if candidate.cas == "reponse" and instruction_devrait_etre_renvoi(instruction):
-                logger.warning(
-                    "[%s] instruction RÉPONSE rejetée (relève du RENVOI, tournure "
-                    "\"comment dire/demander/expliquer\") : %s", tag, instruction,
-                )
-                continue
             if _exige_grammaire_correcte(candidate.plan.persona) and structure_sujet_verbe_manquante(instruction):
                 logger.warning(
                     "[%s] instruction rejetée (structure sujet-verbe manquante, "
@@ -266,6 +312,10 @@ def _generate_instruction_pools(
                         tag, sim_sujet, candidate.instruction,
                     )
                     candidate.instruction = None
+
+        _filtrer_coherence_semantique(
+            llm, [c for c in wave_candidates if c.instruction is not None], max_tokens
+        )
 
         by_plan: dict[int, list[Candidate]] = {}
         for candidate in wave_candidates:
@@ -336,8 +386,11 @@ def _generate_outputs(
     )
     outputs = llm.chat(conversations, sampling_params=sampling_params)
 
-    examples: list[InstructExample] = []
+    # Première passe : parsing, réparation, filtres regex (bon marché). La pertinence
+    # intention/output (embeddings, plus coûteuse et nécessitant un lot) est vérifiée
+    # dans une deuxième passe séparée, uniquement sur les survivants de celle-ci.
     raw_records: list[dict] = []
+    survivants: list[tuple[Candidate, str, dict]] = []
     for candidate, conversation, output in zip(candidates, conversations, outputs):
         text = output.outputs[0].text
         tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.cas}"
@@ -391,20 +444,47 @@ def _generate_outputs(
             raw_records.append(record)
             continue
 
-        record["output"] = output_text
-        raw_records.append(record)
+        survivants.append((candidate, output_text, record))
 
-        examples.append(
-            InstructExample(
-                instruction=candidate.instruction,
-                output=output_text,
-                theme=candidate.plan.theme.id,
-                sous_theme=candidate.plan.sous_theme.id,
-                persona_id=candidate.plan.persona.id,
-                type_attendu=candidate.cas,
-                intention=candidate.intention,
-            )
+    # Deuxième passe : pertinence intention/output par similarité d'embeddings, en
+    # lot. Détecte une réponse qui reste sur le sujet du sous-thème mais répond à un
+    # autre angle que celui tiré (ex. "Comment se passe une IRM ?" répondu par ce que
+    # montre une IRM, pas par son déroulé).
+    examples: list[InstructExample] = []
+    if survivants:
+        seuil_pertinence = taxonomy.parametres_generation.pertinence_intention_min
+        embedder = get_embedder()
+        similarites = similarites_par_paire(
+            [output_text for _, output_text, _ in survivants],
+            [f"{c.plan.sous_theme.description} {c.intention}" for c, _, _ in survivants],
+            embedder=embedder,
         )
+        for (candidate, output_text, record), similarite in zip(survivants, similarites):
+            tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.cas}"
+            if similarite < seuil_pertinence:
+                logger.warning(
+                    "[%s] output rejeté (similarité %.2f avec l'intention, "
+                    "probablement hors angle) : %s",
+                    tag, similarite, output_text,
+                )
+                record["error"] = "output hors angle par rapport à l'intention tirée"
+                raw_records.append(record)
+                continue
+
+            record["output"] = output_text
+            raw_records.append(record)
+
+            examples.append(
+                InstructExample(
+                    instruction=candidate.instruction,
+                    output=output_text,
+                    theme=candidate.plan.theme.id,
+                    sous_theme=candidate.plan.sous_theme.id,
+                    persona_id=candidate.plan.persona.id,
+                    type_attendu=candidate.cas,
+                    intention=candidate.intention,
+                )
+            )
 
     logger.info("%d/%d exemples valides (output)", len(examples), len(candidates))
     return examples, raw_records

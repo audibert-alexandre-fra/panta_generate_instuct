@@ -65,15 +65,20 @@ class Theme(BaseModel):
     id: str
     label: str
     contexte: str
-    # Interlocuteur réel (tiers avec qui le persona communique) par persona_id, car le
-    # lexique/registre de désignation de l'interlocuteur doit coller à l'âge du
-    # persona (ex. "ton enseignant·e" pour un enfant, jamais pertinent pour un adulte).
-    interlocuteur_par_persona: dict[str, str]
+    # Destinataires réels possibles (tiers avec qui le persona communique) par
+    # persona_id, sous forme de LISTE (jamais une chaîne énumérative du type "votre
+    # médecin ou kinésithérapeute" ou "votre famille (parents, fratrie, conjoint·e)" :
+    # une telle chaîne est insérée verbatim dans le prompt et ressort telle quelle,
+    # parenthèses comprises, dans l'output). Le modèle choisit lui-même, dans cette
+    # liste, le destinataire le plus pertinent pour la question précise (cf.
+    # CAS_RENVOI_OUTPUT_BLOC dans prompts.py) ; le lexique de désignation doit coller
+    # à l'âge du persona (ex. "ton enseignant·e" pour un enfant, jamais pour un adulte).
+    interlocuteur_par_persona: dict[str, list[str]]
     contraintes_specifiques: list[str] = Field(default_factory=list)
     quota_exemples: int
     sous_themes: list[SousTheme]
 
-    def interlocuteur_pour(self, persona_id: str) -> str:
+    def interlocuteurs_pour(self, persona_id: str) -> list[str]:
         try:
             return self.interlocuteur_par_persona[persona_id]
         except KeyError as exc:
@@ -97,10 +102,15 @@ class ParametresGeneration(BaseModel):
     # (évite qu'un exemple de persona ne soit recopié quasiment tel quel).
     similarite_exemple_max: float = 0.88
     # Seuil de similarité cosinus en-deçà duquel une instruction générée est rejetée
-    # pour être trop éloignée du sous-thème/de l'intention demandés (proxy de
-    # cohérence sémantique : détecte une instruction qui a dérivé vers un contenu sans
-    # rapport, ex. "je trouve comment enterrer bien usage télévision").
+    # pour être trop éloignée du sous-thème/de l'intention demandés (détecte une
+    # dérive thématique ; ne détecte PAS un charabia qui reste proche du sujet en
+    # surface, cf. la vérification par appel modèle dans generate._filtrer_coherence_semantique).
     coherence_similarite_min: float = 0.20
+    # Seuil de similarité cosinus en-deçà duquel un output généré est rejeté pour être
+    # trop éloigné du sous-thème/de l'intention demandés (détecte une réponse hors
+    # sujet par rapport à l'angle tiré, ex. une explication de ce que montre une IRM
+    # alors que l'intention portait sur le déroulé de l'examen).
+    pertinence_intention_min: float = 0.15
 
 
 class Taxonomy(BaseModel):
@@ -147,6 +157,14 @@ class GeneratedOutput(BaseModel):
     """Sortie brute attendue du modèle enseignant pour l'appel "output"."""
 
     output: str
+
+
+class CoherenceCheck(BaseModel):
+    """Sortie brute attendue du modèle enseignant pour l'appel de validation binaire
+    de cohérence sémantique d'une instruction, entre la génération de l'instruction et
+    celle de l'output (cf. generate._filtrer_coherence_semantique)."""
+
+    sens: bool
 
 
 class InstructExample(BaseModel):

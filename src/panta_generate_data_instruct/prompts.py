@@ -53,9 +53,7 @@ langue est verte depuis le médicament ?" → RENVOI vers le médecin (dépend d
 personne). "Combien de temps dure un rendez-vous médical ?" → RÉPONSE (fait général). \
 "Où sont les toilettes ?" → RENVOI vers une personne présente (dépend de ce lieu). \
 "Combien de temps de retard ?" → RENVOI vers l'agent (dépend de ce moment). Cette \
-logique s'applique à tous les thèmes, pas seulement au médical : une instruction de la \
-forme "comment dire...", "comment demander...", "comment expliquer..." dépend elle \
-aussi toujours de la personne concernée, donc relève du RENVOI.
+logique s'applique à tous les thèmes, pas seulement au médical.
 
 Dans le cas RENVOI, l'assistant ne dit jamais si c'est normal, grave ou bénin, et ne \
 propose jamais de cause ni d'explication partielle : il dit seulement qu'il ne peut \
@@ -155,6 +153,10 @@ cet, cette, ces) doit pointer vers un mot déjà présent dans l'instruction ou 
 dans l'output ; sinon utilise un article indéfini.
 - Termine toujours par une ponctuation finale (. ! ou ?) et referme tout guillemet \
 ouvert : ne coupe jamais l'output en cours de phrase ou en plein guillemet.
+- Ne fais jamais référence, dans l'output, au critère de bascule lui-même ou au fait \
+que la question soit générale ou dépendante du contexte (interdit par ex. "Cela ne \
+dépend de personne en particulier, c'est valable pour tout le monde") : réponds ou \
+renvoie directement, sans jamais commenter pourquoi tu réponds ou renvoies.
 - Respecte les éventuelles contraintes spécifiques au thème listées ci-dessus.
 
 Réponds uniquement avec l'objet JSON demandé : {{"output": "..."}}"""
@@ -170,10 +172,15 @@ l'angle pour rester sur une vraie question de portée générale."""
 
 CAS_RENVOI_INSTRUCTION_BLOC = """Cas de cet exemple : RENVOI.
 L'"instruction" porte sur quelque chose dont la réponse dépend de cette personne, de \
-ce lieu ou de ce moment précis (ex. un symptôme ressenti, l'endroit où se trouve un \
-objet dans ce lieu précis, la durée d'un retard en ce moment, pourquoi un proche \
-précis réagit d'une certaine façon). L'assistant qui recevrait cette instruction ne \
-peut pas connaître la réponse à l'avance, quel que soit son savoir général."""
+ce lieu ou de ce moment (ex. un symptôme ressenti, où se trouve un objet ici, la durée \
+d'un retard maintenant, pourquoi un proche réagit d'une certaine façon aujourd'hui). \
+L'assistant qui recevrait cette instruction ne peut pas connaître la réponse à \
+l'avance, quel que soit son savoir général.
+La spécificité qui rend la réponse dépendante de la personne, du lieu ou du moment \
+doit toujours venir d'un indexical (maintenant, ici, mon, ma, encore, aujourd'hui...), \
+jamais d'un détail inventé. Correct : "Est-ce que c'est bientôt mon tour ?", "Combien \
+de temps ça va encore durer ?". Interdit (détail inventé) : "Comment Marie a résolu \
+son problème ?", "Que veut dire le mot dissolution dans l'explication ?"."""
 
 
 CAS_REPONSE_OUTPUT_BLOC = """Cas de cet exemple : RÉPONSE.
@@ -187,17 +194,28 @@ Consigne de forme pour cette réponse précise (varie d'un exemple à l'autre, �
 respecter ici) : {format_directive}"""
 
 CAS_RENVOI_OUTPUT_BLOC = """Cas de cet exemple : RENVOI — l'assistant n'est pas en position de savoir.
-Structure attendue, rien d'autre : une phrase indiquant que l'assistant ne peut pas \
-répondre, puis une phrase indiquant que c'est {theme_interlocuteur} qui peut répondre. \
+Structure attendue, rien d'autre : une phrase qui nomme l'objet précis de la question \
+(pas la question en général), suivie d'une phrase qui indique vers qui se tourner.
+La première phrase doit nommer l'objet précis de la question. Interdit (trop \
+générique) : "Je ne peux pas répondre à cela", "Je ne peux pas répondre à ça", "Je \
+n'ai pas cette information". Attendu : "Je ne sais pas pourquoi ta langue est verte", \
+"Je ne sais pas combien de temps le train va être en retard".
+Destinataires possibles pour ce thème et ce persona : {destinataires_possibles}. \
+Choisis un seul destinataire, celui qui est le plus pertinent pour cette question \
+précise (ex. une question à propos d'un camarade se renvoie vers ce camarade, pas \
+systématiquement vers l'enseignant·e) ; n'énumère jamais plusieurs destinataires et ne \
+reprends jamais de parenthèses.
 Aucune formulation candidate, aucune explication partielle, aucun avis sur \
 normal/grave/bénin, aucune cause proposée, même partielle.
-Exemple de phrasé à utiliser comme MODÈLE DE STYLE uniquement (adapte-le au registre \
-d'adresse et au persona, ne le recopie jamais mot pour mot) : "{variante_renvoi}\""""
+Modèle de style ci-dessous pour le ton et la deuxième phrase uniquement (le \
+destinataire y est encore générique : remplace-le par le destinataire choisi, et \
+remplace toujours l'ouverture générique par une phrase qui nomme l'objet précis de \
+CETTE question, jamais mot pour mot) : "{variante_renvoi}\""""
 
 
 # Variantes de la phrase "je ne peux pas répondre à ça", tirées au sort pour éviter
 # qu'un patron unique ("Tu veux que je t'aide ?"-like) ne se répète sur tout le
-# sous-ensemble RENVOI. {interlocuteur} est rempli avec Theme.interlocuteur_pour().
+# sous-ensemble RENVOI. {interlocuteur} est rempli avec Theme.interlocuteurs_pour().
 RENVOI_PHRASES_VARIANTES = [
     "Ça, je ne peux pas te le dire. C'est {interlocuteur} qui peut te répondre.",
     "Je ne suis pas en mesure de répondre à ça. Il vaut mieux demander à {interlocuteur}.",
@@ -214,7 +232,7 @@ RENVOI_PHRASES_VARIANTES = [
 # ne commencent tous par le même enrobage (constat observé sur la v2).
 FORMATS_REPONSE_VARIANTES = [
     "réponds directement, sans aucune formule d'introduction, en une seule phrase courte.",
-    "commence par une très courte phrase d'introduction (2-4 mots, ex. \"Alors, \", \"Pour te répondre : \"), puis donne la réponse.",
+    "commence par une très courte phrase d'introduction (2-4 mots) qui annonce que la réponse arrive, sans réutiliser toujours la même formule, puis donne la réponse.",
     "réponds en deux phrases courtes plutôt qu'une seule, sans préambule.",
     "réponds directement en une seule phrase, sans aucun préambule ni formule de politesse.",
     "réponds en une phrase de longueur moyenne, ni très courte ni longue, sans préambule.",
@@ -275,14 +293,20 @@ def build_instruction_prompt(
 
 
 def choisir_variante_renvoi(theme: Theme, persona: Persona) -> str:
-    """Tire au sort une variante de phrase de renvoi et la remplit avec
-    l'interlocuteur réel du thème pour ce persona (varie par thème et par persona)."""
-    interlocuteur = theme.interlocuteur_pour(persona.id)
+    """Tire au sort une variante de phrase de renvoi (secours stylistique) et la
+    remplit avec un destinataire représentatif du thème pour ce persona ; le modèle
+    doit ensuite choisir lui-même le destinataire le plus pertinent pour la question
+    précise (cf. CAS_RENVOI_OUTPUT_BLOC), celui-ci n'est qu'un exemple de ton."""
+    interlocuteur = random.choice(theme.interlocuteurs_pour(persona.id))
     variante = random.choice(RENVOI_PHRASES_VARIANTES)
     return variante.format(
         interlocuteur=interlocuteur,
         interlocuteur_maj=interlocuteur[0].upper() + interlocuteur[1:],
     )
+
+
+def _destinataires_possibles(theme: Theme, persona: Persona) -> str:
+    return ", ".join(theme.interlocuteurs_pour(persona.id))
 
 
 def choisir_format_reponse() -> str:
@@ -307,7 +331,7 @@ def build_output_prompt(
 
     if cas == "renvoi":
         cas_bloc = CAS_RENVOI_OUTPUT_BLOC.format(
-            theme_interlocuteur=theme.interlocuteur_pour(persona.id),
+            destinataires_possibles=_destinataires_possibles(theme, persona),
             variante_renvoi=variante_renvoi or choisir_variante_renvoi(theme, persona),
         )
     else:
@@ -326,3 +350,28 @@ def build_output_prompt(
         cas_output_bloc=cas_bloc,
         persona_registre_adresse=persona.registre_adresse,
     )
+
+
+# Appel de validation binaire de cohérence sémantique, entre la génération de
+# l'instruction et celle de l'output (cf. generate._filtrer_coherence_semantique).
+# Contrairement au filtre par similarité d'embeddings (qui détecte une dérive
+# thématique mais pas un charabia thématiquement proche), cet appel cible le non-sens
+# véritable (ex. "Combien de temps pour enfiler la ville ?").
+COHERENCE_SYSTEM_PROMPT = """Tu vérifies si une phrase en français a un sens \
+compréhensible, en tant que message composé par une personne via un système de \
+Communication Alternative et Améliorée (CAA). Une phrase simplifiée, télégraphique ou \
+avec des mots manquants PEUT avoir du sens (ex. "Ventre fait mal, pourquoi ?" a du \
+sens, malgré la grammaire simplifiée). N'A PAS de sens une combinaison de mots qui ne \
+correspond à aucune situation compréhensible, même si chaque mot pris isolément \
+existe (ex. "Combien de temps pour enfiler la ville ?", "je trouve comment enterrer \
+bien usage télévision")."""
+
+COHERENCE_CHECK_PROMPT_TEMPLATE = """Cette phrase a-t-elle un sens compréhensible en français ?
+
+Phrase : "{instruction}"
+
+Réponds uniquement avec l'objet JSON demandé : {{"sens": true ou false}}"""
+
+
+def build_coherence_check_prompt(instruction: str) -> str:
+    return COHERENCE_CHECK_PROMPT_TEMPLATE.format(instruction=instruction)
