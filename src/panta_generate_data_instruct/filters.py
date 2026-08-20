@@ -190,3 +190,52 @@ def guillemets_ou_ponctuation_invalides(texte: str) -> bool:
     if not fin:
         return True
     return fin[-1] not in {".", "!", "?"}
+
+
+# Rôles désignant un tiers réel (jamais l'assistant), susceptibles d'apparaître en
+# position de vocatif si l'instruction s'adresse par erreur au tiers plutôt qu'à
+# l'assistant (cf. axe d'énonciation dans prompts.py).
+_ROLES_TIERS = (
+    r"camarade|camarades|docteur|docteure|médecin|maman|papa|maîtresse|maître|"
+    r"prof|professeur|professeure|enseignant|enseignante|vendeur|vendeuse|"
+    r"serveur|serveuse|agent|frère|s[oœ]ur|conjoint|conjointe"
+)
+
+# Vocatif : le rôle apparaît nu (sans déterminant possessif/défini), détaché par une
+# virgule en début ou fin de phrase — signe qu'il est interpellé directement plutôt que
+# mentionné à la troisième personne (qui serait précédé de "mon/ma/le/la/un/une").
+_VOCATIF_TIERS_RE = re.compile(
+    rf",\s*({_ROLES_TIERS})\s*[?!.]?\s*$" rf"|^({_ROLES_TIERS})\s*,",
+    re.IGNORECASE,
+)
+
+# Marqueur de deuxième personne (l'instruction peut légitimement contenir "tu"/"vous"
+# quand ils désignent l'assistant, ex. "tu peux m'aider ?" ; ce marqueur sert
+# uniquement à confirmer la présence d'une adresse à la deuxième personne, combinée au
+# vocatif ci-dessus pour limiter les faux positifs).
+_DEUXIEME_PERSONNE_RE = re.compile(r"\b(tu|t'|toi|vous)\b", re.IGNORECASE)
+
+# Verbes/constructions à la deuxième personne qui n'ont de sens que si le TIERS en est
+# le sujet (jamais l'assistant) : un état émotionnel attribué à l'interlocuteur, un
+# verbe de communication caractéristique d'un proche/enseignant·e, ou une offre
+# d'écoute d'un contenu qui appartient au persona.
+_ATTRIBUTION_ETAT_TIERS_RE = re.compile(
+    r"\b(tu|vous)\s+(es|êtes|as|avez)\s+"
+    r"(fâché|fâchée|content|contente|triste|énervé|énervée|inquiet|inquiète|"
+    r"fatigué|fatiguée|bonne journée|bien|mal)\b"
+    r"|\b(tu|vous)\s+(expliques|expliquez|racontes|racontez|dis|dites)\b"
+    r"|\b(tu|vous)\s+(peux|pouvez)\s+écouter\s+(mon|ma|mes|notre|nos)\b",
+    re.IGNORECASE,
+)
+
+
+def deuxieme_personne_designe_tiers(instruction: str) -> bool:
+    """Détecte une instruction où le "tu"/"vous" désigne en réalité le tiers plutôt
+    que l'assistant (confusion sur l'axe d'énonciation, cf. AXE_ENONCIATION_INSTRUCTION
+    dans prompts.py) : un vocatif nommant le tiers (ex. "..., camarade ?") combiné à une
+    adresse à la deuxième personne, ou un verbe/état à la deuxième personne qui ne peut
+    grammaticalement appartenir qu'au tiers (ex. "tu es fâché", "vous avez bonne
+    journée", "tu expliques", "vous pouvez écouter mon récit")."""
+    if _VOCATIF_TIERS_RE.search(instruction) and _DEUXIEME_PERSONNE_RE.search(instruction):
+        return True
+    return bool(_ATTRIBUTION_ETAT_TIERS_RE.search(instruction))

@@ -402,10 +402,10 @@ themes:
           - pourquoi c'est important de dire ce qu'on ressent à ses proches
           - pourquoi on se sent parfois fatigué après une journée chargée
         intentions_renvoi:
-          - pourquoi un proche a l'air fâché aujourd'hui
-          - si un proche va comprendre ce qu'on ressent maintenant
-          - quand un proche va rentrer pour en parler
-          - si un proche est disponible tout de suite pour en parler
+          - savoir pourquoi un proche a l'air fâché aujourd'hui
+          - savoir si un proche va comprendre ce qu'on ressent maintenant
+          - savoir quand un proche va rentrer pour en parler
+          - savoir si un proche est disponible tout de suite pour en parler
       - id: demander_aide_tache
         description: "Demander de l'aide à un proche pour une tâche du quotidien, sans
           préciser la tâche par un détail non fourni (rester générique : \"une tâche à
@@ -415,11 +415,11 @@ themes:
           - pourquoi il est plus facile de faire une tâche à plusieurs
           - pourquoi il est normal de demander de l'aide parfois
         intentions_renvoi:
-          - si un proche est disponible pour aider maintenant
-          - combien de temps un proche va mettre pour venir aider
-          - si une tâche commencée par quelqu'un d'autre est déjà terminée
-          - qui, parmi les proches présents, peut aider maintenant
-          - si ça peut encore attendre un peu
+          - savoir si un proche est disponible pour aider maintenant
+          - savoir combien de temps un proche va mettre pour venir aider
+          - savoir si une tâche commencée par quelqu'un d'autre est déjà terminée
+          - savoir qui, parmi les proches présents, peut aider maintenant
+          - savoir si ça peut encore attendre un peu
       - id: raconter_journee
         description: Raconter sa journée ou un évènement vécu.
         ratio_reponse: 0.5
@@ -427,11 +427,11 @@ themes:
           - pourquoi on aime bien raconter sa journée à ses proches
           - pourquoi une journée peut sembler plus longue qu'une autre
         intentions_renvoi:
-          - si un proche a aussi passé une bonne journée aujourd'hui
-          - ce qu'un proche a prévu de faire demain
-          - si un proche a le temps d'écouter le récit de la journée maintenant
-          - pourquoi ça s'est passé comme ça aujourd'hui
-          - si quelqu'un d'autre était déjà au courant
+          - savoir si un proche a aussi passé une bonne journée aujourd'hui
+          - savoir ce qu'un proche a prévu de faire demain
+          - savoir si un proche est disponible pour écouter en ce moment
+          - savoir pourquoi ça s'est passé comme ça aujourd'hui
+          - savoir si quelqu'un d'autre était déjà au courant
       - id: negocier_pause
         description: Négocier un moment calme ou une pause.
         ratio_reponse: 0.5
@@ -441,10 +441,9 @@ themes:
           - combien de temps dure en général une pause pour se reposer
           - ce qu'est la fatigue
         intentions_renvoi:
-          - si un proche est d'accord pour attendre encore un peu
-          - combien de temps ça va encore durer
-          - si ça peut être repris plus tard
-
+          - savoir si un proche est d'accord pour attendre encore un peu
+          - savoir combien de temps ça va encore durer
+          - savoir si ça peut être repris plus tard
   vie_quotidienne:
     label: Vie quotidienne
     contexte: Situations de la vie courante hors cercle familial et scolaire.
@@ -467,10 +466,10 @@ themes:
           - pourquoi certains magasins ferment le dimanche
           - ce qu'est un ticket de caisse
         intentions_renvoi:
-          - où se trouve quelque chose ici
-          - si on peut être aidé pour un achat maintenant
-          - combien coûte ça
-          - si une place assise est disponible ici maintenant
+          - savoir où se trouve quelque chose ici
+          - savoir si on peut être aidé pour un achat maintenant
+          - savoir combien coûte ça
+          - savoir si une place assise est disponible ici maintenant
       - id: gerer_imprevu
         description: "Réagir à un imprévu (retard, changement, contretemps) sans détail
           précis sur les circonstances (pas de lieu, d'heure ni d'évènement inventé)."
@@ -480,10 +479,10 @@ themes:
           - pourquoi les transports ont parfois du retard en général
           - pourquoi une file d'attente peut s'allonger
         intentions_renvoi:
-          - combien de temps ça va encore durer
-          - pourquoi ça arrive maintenant
-          - s'il existe une solution de remplacement maintenant
-          - si on va être prévenu quand ça va changer
+          - savoir combien de temps ça va encore durer
+          - savoir pourquoi ça arrive maintenant
+          - savoir s'il existe une solution de remplacement maintenant
+          - savoir si on va être prévenu quand ça va changer
       - id: exprimer_preference_refus
         description: Exprimer une préférence ou un refus.
         ratio_reponse: 0.5
@@ -492,10 +491,10 @@ themes:
           - ce qu'est une option
           - pourquoi on peut changer d'avis
         intentions_renvoi:
-          - si on peut avoir plus de temps pour décider maintenant
-          - si une autre option est disponible ici
-          - si un accord partiel est possible ici
-          - jusqu'à quand on peut encore donner une réponse
+          - savoir si on peut avoir plus de temps pour décider maintenant
+          - savoir si une autre option est disponible ici
+          - savoir si un accord partiel est possible ici
+          - savoir jusqu'à quand on peut encore donner une réponse
       - id: demander_itineraire
         description: Demander son chemin ou une information d'orientation.
         ratio_reponse: 0.5
@@ -504,11 +503,10 @@ themes:
           - comment lire un panneau de direction en général
           - pourquoi certains trajets sont plus longs que d'autres en général
         intentions_renvoi:
-          - quel chemin prendre à partir d'ici
-          - si le trajet est accessible facilement
-          - combien de temps ça prend
-          - si on est dans la bonne direction maintenant
-
+          - savoir quel chemin prendre à partir d'ici
+          - savoir si le trajet est accessible facilement
+          - savoir combien de temps ça prend
+          - savoir si on est dans la bonne direction maintenant
   ecole:
     label: École
     contexte: "Vie scolaire : classe, enseignant·e, camarades."
@@ -538,10 +536,10 @@ themes:
           - ce qu'est une consigne en général
           - pourquoi on doit suivre des règles en classe en général
         intentions_renvoi:
-          - pourquoi il y a une règle comme ça
-          - combien de temps ça va encore durer
-          - ce qu'il faut faire ensuite maintenant
-          - pourquoi le professeur a dit ça
+          - savoir pourquoi il y a une règle comme ça
+          - savoir combien de temps ça va encore durer
+          - savoir ce qu'il faut faire ensuite maintenant
+          - savoir pourquoi le professeur a dit ça
       - id: aide_camarade
         description: "Demander ou proposer de l'aide à un·e camarade pour une activité
           scolaire, sans détail précis sur le contenu de l'activité (pas de matière,
@@ -556,11 +554,11 @@ themes:
           - pourquoi c'est important de s'entraider en classe
           - ce qu'est être un bon camarade
         intentions_renvoi:
-          - si son camarade a besoin d'aide maintenant
-          - si son camarade a compris
-          - si du matériel est disponible à partager maintenant
-          - si son camarade a réussi à s'en sortir
-          - si son camarade est d'accord pour faire ça ensemble maintenant
+          - savoir si son camarade a besoin d'aide en ce moment
+          - savoir si son camarade a compris
+          - savoir si du matériel est disponible à partager maintenant
+          - savoir si son camarade a réussi à s'en sortir
+          - savoir si son camarade est d'accord pour faire ça ensemble maintenant
       - id: activite_groupe
         description: Participer à une activité de groupe.
         ratio_reponse: 0.5
@@ -574,10 +572,10 @@ themes:
           - pourquoi on travaille parfois en groupe à l'école
           - ce qu'est le rôle d'un rapporteur dans un groupe
         intentions_renvoi:
-          - comment se répartir les tâches maintenant
-          - si c'est bientôt son tour
-          - si tout le monde est d'accord maintenant
-          - quel rôle chacun a maintenant
+          - savoir comment se répartir les tâches maintenant
+          - savoir si c'est bientôt son tour
+          - savoir si tout le monde est d'accord maintenant
+          - savoir quel rôle chacun a maintenant
       - id: signaler_incomprehension
         description: "Signaler qu'on n'a pas compris quelque chose en classe (une
           consigne, une explication, une activité), sans détail précis sur le contenu
@@ -593,7 +591,7 @@ themes:
           - ce qu'est une explication
           - pourquoi il est utile de poser des questions en classe
         intentions_renvoi:
-          - pourquoi ça a été trop vite
-          - ce qu'un mot veut dire
-          - pourquoi on a perdu le fil maintenant
-          - à quel moment on a décroché
+          - savoir pourquoi ça a été trop vite
+          - savoir ce qu'un mot veut dire
+          - savoir pourquoi on a perdu le fil maintenant
+          - savoir à quel moment on a décroché

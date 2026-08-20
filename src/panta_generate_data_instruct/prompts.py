@@ -79,7 +79,19 @@ PERSONA_BLOC_TEMPLATE = """Persona :
 l'intention ci-dessous, ne pas recopier tel quel) : "{persona_exemple_instruction}\""""
 
 
-INSTRUCTION_PROMPT_TEMPLATE = """Génère uniquement le champ "instruction" pour cet exemple.
+AXE_ENONCIATION_INSTRUCTION = """RAPPEL IMPORTANT — l'"instruction" est toujours ce que le persona écrit À \
+L'ASSISTANT, jamais ce qu'il dirait au tiers, et jamais ce que le tiers lui dit. Le \
+persona parle de son interlocuteur à la troisième personne.
+Correct : "Est-ce que mon frère est fâché contre moi ?", "Est-ce que ma sœur a le \
+temps de m'écouter maintenant ?"
+Interdit : "Pourquoi tu es fâché avec moi ?" (adressée au frère), "Tu veux que je \
+t'aide ?" (adressée au camarade), "Tu expliques trop vite" (adressée à l'enseignant·e).
+Le "tu" ou le "vous" d'une instruction ne peut désigner que l'assistant lui-même."""
+
+
+INSTRUCTION_PROMPT_TEMPLATE = """{axe_enonciation}
+
+Génère uniquement le champ "instruction" pour cet exemple.
 
 Thème : {theme_label}
 Contexte : {theme_contexte}
@@ -118,8 +130,17 @@ quel, produis un contenu différent adapté au sous-thème et à l'angle demand�
 Réponds uniquement avec l'objet JSON demandé : {{"instruction": "..."}}"""
 
 
+AXE_ENONCIATION_OUTPUT = """RAPPEL IMPORTANT — l'assistant répond au persona et parle du tiers à la troisième \
+personne. Il ne se présente jamais comme étant ce tiers, et n'attribue jamais au \
+persona une action ou un état qui appartient au tiers (interdit par ex. : "Je ne sais \
+pas pourquoi je suis fâché avec toi", "Je ne sais pas si vous pouvez écouter votre \
+récit")."""
+
+
 OUTPUT_PROMPT_TEMPLATE = """Génère uniquement le champ "output" pour cet exemple, en réponse à \
 l'"instruction" suivante déjà retenue.
+
+{axe_enonciation}
 
 Thème : {theme_label}
 Contexte : {theme_contexte}
@@ -281,6 +302,7 @@ def build_instruction_prompt(
         )
 
     return INSTRUCTION_PROMPT_TEMPLATE.format(
+        axe_enonciation=AXE_ENONCIATION_INSTRUCTION,
         theme_label=theme.label,
         theme_contexte=theme.contexte,
         sous_theme_id=sous_theme.id,
@@ -340,6 +362,7 @@ def build_output_prompt(
         )
 
     return OUTPUT_PROMPT_TEMPLATE.format(
+        axe_enonciation=AXE_ENONCIATION_OUTPUT,
         theme_label=theme.label,
         theme_contexte=theme.contexte,
         sous_theme_id=sous_theme.id,

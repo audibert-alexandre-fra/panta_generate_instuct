@@ -36,6 +36,7 @@ from vllm.sampling_params import StructuredOutputsParams
 from panta_generate_data_instruct.dedup import deduplicate, get_embedder, similarites_par_paire
 from panta_generate_data_instruct.filters import (
     demonstratifs_non_introduits,
+    deuxieme_personne_designe_tiers,
     engagement_physique_assistant,
     explication_interdite_en_renvoi,
     guillemets_ou_ponctuation_invalides,
@@ -278,6 +279,12 @@ def _generate_instruction_pools(
                     "[%s] instruction rejetée (structure sujet-verbe manquante, "
                     "incompatible avec la grammaire correcte exigée par le persona) : %s",
                     tag, instruction,
+                )
+                continue
+            if deuxieme_personne_designe_tiers(instruction):
+                logger.warning(
+                    "[%s] instruction rejetée (le \"tu\"/\"vous\" désigne le tiers, "
+                    "pas l'assistant) : %s", tag, instruction,
                 )
                 continue
 
