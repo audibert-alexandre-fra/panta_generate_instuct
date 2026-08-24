@@ -174,10 +174,20 @@ class GeneratedOutput(BaseModel):
 
 class CoherenceCheck(BaseModel):
     """Sortie brute attendue du modèle enseignant pour l'appel de validation binaire
-    de cohérence sémantique d'une instruction, entre la génération de l'instruction et
-    celle de l'output (cf. generate._filtrer_coherence_semantique)."""
+    de correction grammaticale et de cohérence sémantique d'une instruction, entre la
+    génération de l'instruction et celle de l'output (cf.
+    generate._filtrer_coherence_semantique)."""
 
     sens: bool
+
+
+class OutputRelecture(BaseModel):
+    """Sortie brute attendue du modèle enseignant pour l'appel de relecture-réparation
+    d'un output déjà généré (cf. generate._relire_outputs) : corrige les fautes
+    d'orthographe, de grammaire, d'accord ou de frappe sans changer le sens, le
+    registre, la longueur ni le niveau de vocabulaire du texte."""
+
+    output_corrige: str
 
 
 class InstructExample(BaseModel):

@@ -103,14 +103,16 @@ Angle précis à adopter pour cette instruction : {intention}
 {cas_instruction_bloc}
 
 Règles impératives pour l'"instruction" :
-- Doit rester une phrase à peu près correcte et reconnaissable comme une phrase, même \
-simplifiée (mots manquants ou conjugaison approximative tolérés selon le profil du \
-persona) — jamais une simple liste de mots-clés juxtaposés sans lien grammatical \
-(mauvais exemples, à ne jamais produire : "couleur vert", "docteur pilule vert langue \
-pourquoi") et jamais une combinaison de mots qui n'a pas de sens (mauvais exemples, à \
-ne jamais produire : "Combien de temps pour enfiler la ville ?", "je trouve comment \
-enterrer bien usage télévision") : chaque mot choisi doit avoir un rapport clair et \
-compréhensible avec le sous-thème et l'angle demandés.
+- Doit TOUJOURS être une phrase grammaticalement correcte et complète (article, \
+préposition et verbe conjugué présents comme il faut), quel que soit le persona : la \
+simplicité vient de la longueur, du vocabulaire et de la structure syntaxique, jamais \
+d'une grammaire dégradée — jamais une simple liste de mots-clés juxtaposés sans lien \
+grammatical (mauvais exemples, à ne jamais produire : "couleur vert", "docteur pilule \
+vert langue pourquoi", "Maison pourquoi dire mal à docteur") et jamais une combinaison \
+de mots qui n'a pas de sens (mauvais exemples, à ne jamais produire : "Combien de \
+temps pour enfiler la ville ?", "je trouve comment enterrer bien usage télévision") : \
+chaque mot choisi doit avoir un rapport clair et compréhensible avec le sous-thème et \
+l'angle demandés.
 - Auto-suffisance stricte : ne renvoie jamais à un référent que l'assistant n'a pas \
 reçu ("cet exercice", "la leçon", "ce document"...). Tout démonstratif (ce, cet, \
 cette, ces) doit obligatoirement pointer vers un mot déjà présent plus tôt dans \
@@ -195,6 +197,12 @@ pleut, c'est quoi un aimant, comment on fait pousser des tomates), pas seulement
 commentaires sur sa propre situation : pars de ce concept. Utilise l'angle indiqué \
 plus haut seulement comme cadre général si besoin, sans forcer un lien artificiel \
 entre le concept et cet angle.
+Le concept fourni doit être le SUJET de la question, jamais un décor ajouté à une \
+question qui porterait sur autre chose. Si le concept ne se prête pas au type de \
+question demandé, pose la question directement sur le concept plutôt que de l'insérer \
+dans une formule toute faite.
+Correct : "C'est quoi une rue piétonne ?", "Pourquoi il y a des embouteillages ?" \
+Interdit : "Qu'est-ce qu'un point de repère dans le contexte d'une horloge publique ?"
 Type de question à produire : {type_question}. N'utilise jamais un type de question \
 qui appellerait une durée précise en chiffres ("combien de temps...", "pendant \
 combien de jours...") : ce type de question produit systématiquement des chiffres \
@@ -411,16 +419,19 @@ def build_output_prompt(
 # Contrairement au filtre par similarité d'embeddings (qui détecte une dérive
 # thématique mais pas un charabia thématiquement proche), cet appel cible le non-sens
 # véritable (ex. "Combien de temps pour enfiler la ville ?").
-COHERENCE_SYSTEM_PROMPT = """Tu vérifies si une phrase en français a un sens \
+COHERENCE_SYSTEM_PROMPT = """Tu vérifies si une phrase en français est une phrase correcte et \
 compréhensible, en tant que message composé par une personne via un système de \
-Communication Alternative et Améliorée (CAA). Une phrase simplifiée, télégraphique ou \
-avec des mots manquants PEUT avoir du sens (ex. "Ventre fait mal, pourquoi ?" a du \
-sens, malgré la grammaire simplifiée). N'A PAS de sens une combinaison de mots qui ne \
-correspond à aucune situation compréhensible, même si chaque mot pris isolément \
-existe (ex. "Combien de temps pour enfiler la ville ?", "je trouve comment enterrer \
-bien usage télévision")."""
+Communication Alternative et Améliorée (CAA). Une phrase COURTE et SIMPLE peut être \
+valide (ex. "Pourquoi j'ai mal au ventre ?" est valide), mais elle doit toujours être \
+grammaticalement correcte et complète (sujet, verbe conjugué, articles et \
+prépositions présents comme il faut) et correspondre à une situation compréhensible. \
+N'EST PAS valide une phrase agrammaticale, réduite à des mots juxtaposés sans lien \
+grammatical (ex. "docteur pilule vert langue pourquoi", "Ventre fait mal, pourquoi ?"), \
+ni une combinaison de mots qui ne correspond à aucune situation compréhensible même si \
+chaque mot pris isolément existe (ex. "Combien de temps pour enfiler la ville ?", "je \
+trouve comment enterrer bien usage télévision")."""
 
-COHERENCE_CHECK_PROMPT_TEMPLATE = """Cette phrase a-t-elle un sens compréhensible en français ?
+COHERENCE_CHECK_PROMPT_TEMPLATE = """Cette phrase est-elle une phrase française correcte et compréhensible ?
 
 Phrase : "{instruction}"
 
@@ -429,3 +440,31 @@ Réponds uniquement avec l'objet JSON demandé : {{"sens": true ou false}}"""
 
 def build_coherence_check_prompt(instruction: str) -> str:
     return COHERENCE_CHECK_PROMPT_TEMPLATE.format(instruction=instruction)
+
+
+# Appel de relecture-réparation d'un output déjà généré (cf. generate._relire_outputs),
+# après la réparation déterministe des élisions (reparer_elisions) et avant les filtres
+# regex de rejet. Contrairement à reparer_elisions (règle orthographique fixe, sûre),
+# cet appel cible les fautes qu'une règle déterministe ne peut pas couvrir de façon
+# fiable (coquilles, accords, tournures incorrectes ou anglicismes, ex. "se reposer
+# és", "là-das", "lesquelles risque", "plus focus", "au caisse").
+RELECTURE_SYSTEM_PROMPT = """Tu relis un texte en français déjà écrit par un autre modèle, destiné à un \
+assistant de Communication Alternative et Améliorée (CAA), registre FALC (Facile à \
+Lire et à Comprendre). Ta seule tâche est de corriger les fautes d'orthographe, de \
+grammaire, de conjugaison, d'accord ou de frappe (par ex. corriger "és" en "assez", \
+"là-das" en "là-bas", "au caisse" en "à la caisse", "plus focus" en une tournure \
+française correcte). Tu ne dois JAMAIS changer le sens, le contenu, la longueur, le \
+registre (FALC, simple) ni le niveau de vocabulaire du texte : ne remplace jamais un \
+mot simple par un mot plus compliqué ou plus soutenu, n'ajoute et ne retire aucune \
+information. Si le texte ne contient aucune faute, renvoie-le strictement à \
+l'identique."""
+
+RELECTURE_PROMPT_TEMPLATE = """Corrige les fautes de ce texte s'il y en a, sans rien changer d'autre :
+
+"{output}"
+
+Réponds uniquement avec l'objet JSON demandé : {{"output_corrige": "..."}}"""
+
+
+def build_relecture_prompt(output: str) -> str:
+    return RELECTURE_PROMPT_TEMPLATE.format(output=output)

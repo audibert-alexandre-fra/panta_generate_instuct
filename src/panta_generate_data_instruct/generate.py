@@ -7,7 +7,10 @@ Procédure par cellule (thème x sous-thème x persona compatible, cf.
 SousTheme.poids_personas) :
 1. "instruction" et "output" sont générés en deux appels séparés (build_instruction_prompt
    / build_output_prompt) : un appel unique tend à lisser le bruit caractéristique du
-   persona dans l'instruction.
+   persona dans l'instruction. Le cas (RÉPONSE/RENVOI) de chaque cellule est fixé à
+   l'avance par _plan_cells, avec un split RÉPONSE/RENVOI calculé à l'échelle du
+   sous-thème (pas persona par persona, cf. _distribuer_renvoi) pour garantir le ratio
+   cible même à petit quota.
 2. Les instructions sont surgénérées (parametres_generation.surgeneration_min/max) en
    plusieurs vagues ; chaque vague reçoit la liste des instructions déjà retenues pour
    la cellule (consigne : ne pas y ressembler), passe par un troisième appel modèle de
@@ -16,7 +19,9 @@ SousTheme.poids_personas) :
    sémantique (dedup.py) réduit le pool avant la vague suivante.
 3. Le pool final est réduit au quota de la cellule (dérivé du poids de compatibilité
    persona x sous-thème).
-4. Un dernier dédoublonnage sémantique s'applique à l'intérieur de chaque sous-thème,
+4. Chaque output généré passe par une relecture-réparation (_relire_outputs, appel
+   modèle) avant les filtres regex de rejet.
+5. Un dernier dédoublonnage sémantique s'applique à l'intérieur de chaque sous-thème,
    toutes personas confondues.
 """
 
@@ -51,10 +56,12 @@ from panta_generate_data_instruct.filters import (
 )
 from panta_generate_data_instruct.prompts import (
     COHERENCE_SYSTEM_PROMPT,
+    RELECTURE_SYSTEM_PROMPT,
     CasType,
     build_coherence_check_prompt,
     build_instruction_prompt,
     build_output_prompt,
+    build_relecture_prompt,
     build_system_prompt,
     choisir_format_reponse,
     choisir_variante_renvoi,
@@ -64,6 +71,7 @@ from panta_generate_data_instruct.schemas import (
     GeneratedInstruction,
     GeneratedOutput,
     InstructExample,
+    OutputRelecture,
     Persona,
     SousTheme,
     Taxonomy,
@@ -75,6 +83,7 @@ N_VAGUES = 3
 INSTRUCTION_SCHEMA = GeneratedInstruction.model_json_schema()
 OUTPUT_SCHEMA = GeneratedOutput.model_json_schema()
 COHERENCE_SCHEMA = CoherenceCheck.model_json_schema()
+RELECTURE_SCHEMA = OutputRelecture.model_json_schema()
 
 logger = logging.getLogger(__name__)
 
@@ -130,6 +139,49 @@ def _filtrer_coherence_semantique(
             candidate.instruction = None
 
 
+def _relire_outputs(
+    llm: LLM,
+    texts: list[str],
+    max_tokens: int,
+) -> list[str]:
+    """Passe de relecture-réparation appliquée à chaque output déjà généré (appel
+    modèle, cf. prompts.build_relecture_prompt), après la réparation déterministe des
+    élisions et avant les filtres regex de rejet. Corrige les fautes qui échappent à
+    reparer_elisions (coquilles, accords, tournures incorrectes ou anglicismes, ex.
+    "és" pour "assez", "là-das" pour "là-bas", "au caisse" pour "à la caisse", "plus
+    focus") sans changer le sens, le registre ni la longueur. Température fixée à 0 :
+    c'est une correction, pas une génération créative. N'échoue jamais un candidat sur
+    cette passe : en cas de sortie invalide, le texte d'origine est conservé et seuls
+    les filtres suivants peuvent rejeter le candidat."""
+    if not texts:
+        return texts
+
+    conversations = [
+        [
+            {"role": "system", "content": RELECTURE_SYSTEM_PROMPT},
+            {"role": "user", "content": build_relecture_prompt(text)},
+        ]
+        for text in texts
+    ]
+    sampling_params = SamplingParams(
+        temperature=0.0,
+        max_tokens=max_tokens,
+        structured_outputs=StructuredOutputsParams(json=RELECTURE_SCHEMA),
+    )
+    outputs = llm.chat(conversations, sampling_params=sampling_params)
+
+    corrected: list[str] = []
+    for text, output in zip(texts, outputs):
+        raw = output.outputs[0].text
+        try:
+            parsed = OutputRelecture.model_validate_json(raw)
+            corrected.append(parsed.output_corrige)
+        except ValueError as exc:
+            logger.warning("relecture invalide, texte d'origine conservé : %s", exc)
+            corrected.append(text)
+    return corrected
+
+
 def build_llm(model: str = DEFAULT_MODEL, enforce_eager: bool = True, **llm_kwargs) -> LLM:
     # enforce_eager=True par défaut : évite torch.compile, dont la passe de fusion
     # AllReduce importe flashinfer.comm, qui utilise l'annotation `array.array[int]`
@@ -159,6 +211,44 @@ class Candidate:
         return self.plan.cas
 
 
+def _distribuer_renvoi(targets: dict[str, int], n_renvoi: int) -> dict[str, int]:
+    """Distribue n_renvoi exemples RENVOI entre les personas d'un même sous-thème
+    (méthode du plus fort reste, plafonnée par le quota `targets[persona_id]` de
+    chaque persona), au lieu d'arrondir indépendamment le split RÉPONSE/RENVOI cellule
+    par cellule : à petit quota par persona (ex. target=1), round(1 * ratio_reponse)
+    vaut systématiquement 1, ce qui ramenait le RENVOI à zéro dans toutes les cellules
+    et faisait disparaître entièrement le cas RENVOI du jeu généré. En calculant le
+    nombre de RENVOI une seule fois pour tout le sous-thème (cf. _plan_cells), le ratio
+    est respecté à cette échelle même quand aucune cellule individuelle n'a un quota
+    assez grand pour en tirer un de son côté."""
+    total = sum(targets.values())
+    if total <= 0 or n_renvoi <= 0:
+        return {persona_id: 0 for persona_id in targets}
+
+    n_renvoi = min(n_renvoi, total)
+    raw = {persona_id: n_renvoi * t / total for persona_id, t in targets.items()}
+    alloc = {persona_id: min(int(raw[persona_id]), targets[persona_id]) for persona_id in targets}
+    restant = n_renvoi - sum(alloc.values())
+
+    # Plus fort reste, en respectant le plafond de chaque persona. Boucle (pas une
+    # seule passe) : une fois un plafond atteint, le reliquat doit pouvoir se reporter
+    # sur les personas suivants dans l'ordre des plus forts restes.
+    ordre = sorted(targets, key=lambda p: raw[p] - int(raw[p]), reverse=True)
+    while restant > 0:
+        progresse = False
+        for persona_id in ordre:
+            if restant <= 0:
+                break
+            if alloc[persona_id] < targets[persona_id]:
+                alloc[persona_id] += 1
+                restant -= 1
+                progresse = True
+        if not progresse:
+            break
+
+    return alloc
+
+
 def _plan_cells(
     taxonomy: Taxonomy,
     n_per_cell: int,
@@ -170,13 +260,15 @@ def _plan_cells(
     surgénérer. Le volume cible par sous-thème (n_per_cell x nombre de personas) est
     d'abord redistribué entre les personas compatibles au prorata de leur poids ; les
     personas à poids 0 (ex. personas adultes pour le thème école) sont exclus et leur
-    part reportée sur les personas restants. Le quota de chaque persona est ensuite
-    lui-même réparti entre RÉPONSE et RENVOI selon sous_theme.ratio_reponse, arrondi à
-    l'entier : le cas devient une propriété FIXE du plan (plus un tirage aléatoire par
-    candidat), ce qui garantit le ratio à l'échelle de CHAQUE cellule et pas seulement
-    en moyenne globale (une cellule à 5 exemples et ratio_reponse=0.9 donne 5 ou 4
-    RÉPONSE selon l'arrondi, jamais une répartition qui s'écarte fortement de 90/10 par
-    hasard de tirage)."""
+    part reportée sur les personas restants. Le split RÉPONSE/RENVOI n'est PAS arrondi
+    persona par persona (cf. _distribuer_renvoi pour la raison) : le nombre total de
+    RENVOI est calculé une seule fois pour tout le sous-thème
+    (max(1, round(total * (1 - ratio_reponse))), garantissant au moins un RENVOI par
+    sous-thème dès que son quota total est positif), puis réparti entre les personas
+    compatibles au prorata de leur quota. Le cas (et son quota résultant) devient une
+    propriété FIXE du plan (plus un tirage aléatoire par candidat), ce qui garantit le
+    ratio à l'échelle du sous-thème et pas seulement en moyenne globale sur tout le
+    jeu."""
     plans: list[CellPlan] = []
     n_personas = len(taxonomy.personas)
     for theme in taxonomy.themes:
@@ -189,6 +281,7 @@ def _plan_cells(
                 )
                 continue
             total_target = n_per_cell * n_personas
+            persona_targets: dict[str, int] = {}
             for persona in taxonomy.personas:
                 w = poids[persona.id]
                 if w <= 0:
@@ -196,8 +289,22 @@ def _plan_cells(
                 target = round(total_target * w / total_weight)
                 if target <= 0:
                     continue
-                target_reponse = round(target * sous_theme.ratio_reponse)
-                target_renvoi = target - target_reponse
+                persona_targets[persona.id] = target
+
+            if not persona_targets:
+                continue
+
+            sous_theme_total = sum(persona_targets.values())
+            n_renvoi_total = max(1, round(sous_theme_total * (1 - sous_theme.ratio_reponse)))
+            n_renvoi_total = min(n_renvoi_total, sous_theme_total)
+            renvoi_par_persona = _distribuer_renvoi(persona_targets, n_renvoi_total)
+
+            for persona in taxonomy.personas:
+                target = persona_targets.get(persona.id)
+                if target is None:
+                    continue
+                target_renvoi = renvoi_par_persona[persona.id]
+                target_reponse = target - target_renvoi
                 for cas, cas_target in (("reponse", target_reponse), ("renvoi", target_renvoi)):
                     if cas_target <= 0:
                         continue
@@ -423,11 +530,11 @@ def _generate_outputs(
     )
     outputs = llm.chat(conversations, sampling_params=sampling_params)
 
-    # Première passe : parsing, réparation, filtres regex (bon marché). La pertinence
+    # Première passe : parsing et réparation déterministe des élisions. La pertinence
     # intention/output (embeddings, plus coûteuse et nécessitant un lot) est vérifiée
-    # dans une deuxième passe séparée, uniquement sur les survivants de celle-ci.
+    # dans une deuxième passe séparée, uniquement sur les survivants des filtres regex.
     raw_records: list[dict] = []
-    survivants: list[tuple[Candidate, str, dict]] = []
+    parses_ok: list[tuple[Candidate, dict, str]] = []
     for candidate, conversation, output in zip(candidates, conversations, outputs):
         text = output.outputs[0].text
         tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.cas}"
@@ -453,11 +560,20 @@ def _generate_outputs(
             raw_records.append(record)
             continue
 
-        # Passe de relecture-réparation : corrige les élisions manquantes
-        # automatiquement (règle orthographique sûre) avant les filtres qui, eux,
-        # rejettent (fautes qui ne peuvent pas être corrigées de façon sûre).
+        # Réparation déterministe des élisions manquantes (règle orthographique sûre),
+        # avant la relecture-réparation par appel modèle ci-dessous.
         output_text = reparer_elisions(parsed.output)
+        parses_ok.append((candidate, record, output_text))
 
+    # Relecture-réparation par appel modèle (cf. _relire_outputs) : corrige les fautes
+    # qui échappent à reparer_elisions (coquilles, accords, tournures incorrectes),
+    # avant les filtres regex de rejet ci-dessous, qui s'appliquent donc au texte
+    # relu plutôt qu'à la sortie brute du modèle.
+    textes_relus = _relire_outputs(llm, [output_text for _, _, output_text in parses_ok], max_tokens)
+
+    survivants: list[tuple[Candidate, str, dict]] = []
+    for (candidate, record, _), output_text in zip(parses_ok, textes_relus):
+        tag = f"{candidate.plan.theme.id}/{candidate.plan.sous_theme.id}/{candidate.plan.persona.id}/{candidate.cas}"
         rejet: str | None = None
         demonstratifs = demonstratifs_non_introduits(f"{candidate.instruction} {output_text}")
         if demonstratifs:

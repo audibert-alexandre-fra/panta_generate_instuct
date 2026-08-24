@@ -12,9 +12,17 @@
 # tourner (le destinataire varie selon le thème, cf. interlocuteur_par_persona). Le
 # critère de bascule n'est jamais le sujet mais la source de la réponse : dépend-elle
 # de cette personne, de ce lieu, de ce moment ? Si oui, RENVOI ; sinon, RÉPONSE.
-# Cible du jeu : 90 % RÉPONSE / 10 % RENVOI (ratio_reponse: 0.9 partout), appliqué au
-# niveau de CHAQUE cellule par generate.py (cf. CellPlan.cas dans _plan_cells), pas
-# seulement en moyenne globale.
+# Cible du jeu : 90 % RÉPONSE / 10 % RENVOI (ratio_reponse: 0.9 par défaut, 0.7 sur
+# effets_secondaires et douleur_gene où le renvoi est le comportement de sécurité
+# critique : une question sur un symptôme ressenti doit toujours être renvoyée vers le
+# médecin). Le split RÉPONSE/RENVOI est calculé par generate.py à l'échelle de CHAQUE
+# SOUS-THÈME (pas persona par persona) : le nombre de RENVOI est déterminé une seule
+# fois pour tout le sous-thème puis réparti entre les personas compatibles (méthode du
+# plus fort reste), avec un minimum d'un RENVOI garanti par sous-thème (cf.
+# _plan_cells / _distribuer_renvoi dans generate.py). Un arrondi indépendant par
+# persona (round(target * ratio_reponse)) ramenait le RENVOI à zéro dès que le quota
+# par persona descendait à 1 exemple (round(1 * 0.9) = 1, donc target_renvoi = 0) :
+# c'est ce qui avait fait disparaître entièrement le cas RENVOI du pilote.
 #
 # Pour le cas RÉPONSE, deux axes supplémentaires sont tirés au sort en plus de
 # l'intention (cf. generate._generate_instruction_pools) : un concept concret propre
@@ -56,13 +64,14 @@ style_guide:
     - Pas d'expressions idiomatiques ni de sens figuré.
     - Ton direct et bienveillant, jamais infantilisant.
     - "Le champ instruction reflète un message composé via un système de CAA ; son degré
-      de simplicité (longueur, mots manquants, absence de conjugaison) doit
-      correspondre au niveau de langage et à l'exemple donnés pour le persona (voir
-      personas ci-dessous), mais il doit toujours rester une phrase à peu près
-      correcte, reconnaissable comme une phrase même simplifiée (par ex. \"Pourquoi
-      pilule fait langue verte, docteur ?\" est correct). Une simple liste de mots
-      juxtaposés sans lien grammatical (par ex. \"docteur pilule vert langue
-      pourquoi\"), ou une combinaison de mots qui n'a pas de sens (par ex. \"Combien de
+      de simplicité (longueur, vocabulaire, complexité syntaxique) doit correspondre au
+      niveau de langage et à l'exemple donnés pour le persona (voir personas
+      ci-dessous), mais il doit TOUJOURS être une phrase grammaticalement correcte et
+      complète, quel que soit le persona (par ex. \"Pourquoi j'ai mal au ventre ?\" est
+      correct). Une simple liste de mots juxtaposés sans lien grammatical (par ex.
+      \"docteur pilule vert langue pourquoi\"), une phrase à laquelle il manque un
+      article, une préposition ou un verbe conjugué (par ex. \"Maison pourquoi dire mal
+      à docteur\"), ou une combinaison de mots qui n'a pas de sens (par ex. \"Combien de
       temps pour enfiler la ville ?\"), n'est jamais acceptable, quel que soit le
       persona : chaque mot choisi doit avoir un rapport clair avec le sous-thème et
       l'angle demandés."
@@ -70,10 +79,11 @@ style_guide:
       une liste de mots-clés sans lien grammatical entre eux : il doit toujours
       indiquer clairement, sous forme de phrase, ce que le persona veut savoir, dire
       ou demander."
-    - "Un persona dont la grammaire attendue est qualifiée de correcte (conjugaison
-      correcte, phrases complètes) ne produit jamais un enchaînement de mots sans
-      structure sujet-verbe reconnaissable, même dans une instruction courte (interdit
-      par ex. \"Verdict arrêt à arrêt du médicament ?\")."
+    - "Quel que soit le persona, l'instruction ne consiste jamais en un enchaînement de
+      mots sans structure sujet-verbe reconnaissable, même dans une instruction très
+      courte (interdit par ex. \"Verdict arrêt à arrêt du médicament ?\", \"docteur
+      pilule vert langue pourquoi\") : la simplicité vient de la longueur, du
+      vocabulaire et de la structure syntaxique, jamais de l'absence de grammaire."
     - Le champ output est toujours une phrase complète, simple et adaptée au persona.
     - "Ni l'instruction ni l'output ne doivent inventer de détail contextuel précis qui
       n'est fourni nulle part (une date, une heure, l'agencement d'un lieu, un
@@ -152,41 +162,43 @@ personas:
   - id: enfant_pictogrammes
     age: "6-10 ans"
     profil: trouble du spectre autistique
-    niveau_langage: télégraphique (mots-clés)
+    niveau_langage: phrases très courtes et simples
     moyen_caa: tableau de pictogrammes
     longueur_max_mots: 6
-    grammaire: "verbes seulement à l'infinitif ou au présent 3e personne (ex. \"fait\",
-      \"veut\"), pas d'autre temps ni personne, pas de mots de liaison (articles,
-      prépositions)"
+    grammaire: "phrases courtes mais complètes, structure sujet-verbe-complément
+      systématique, verbes conjugués correctement au présent (jamais d'infinitif à la
+      place d'un verbe conjugué), articles et prépositions toujours présents comme
+      dans une phrase normale, pas de subordonnée"
     registre_lexical: vocabulaire très concret, mots courts et familiers, aucune abstraction
-    bruit_caracteristique: mots-clés juxtaposés (pictogrammes sélectionnés un par un),
-      articles et prépositions absents
+    bruit_caracteristique: aucun bruit de forme (la phrase reste toujours complète et
+      correcte) ; la simplicité vient uniquement de la brièveté et du vocabulaire très
+      concret, jamais d'une grammaire dégradée
     registre_adresse: tu
     exemples_instruction_par_theme:
       medical:
-        - "Pilule fait langue verte, pourquoi ?"
-        - "Ventre fait mal, pourquoi ?"
-        - "Chaussure fait mal pied, pourquoi ?"
-        - "Piqûre fait peur, pourquoi ?"
-        - "Sirop goût bizarre, pourquoi ?"
+        - "Pourquoi ma langue est verte ?"
+        - "Pourquoi j'ai mal au ventre ?"
+        - "Pourquoi ma chaussure fait mal ?"
+        - "Pourquoi la piqûre fait peur ?"
+        - "Pourquoi le sirop a mauvais goût ?"
       famille:
-        - "Maman fâchée, pourquoi ?"
-        - "Veut jouer dehors, possible ?"
-        - "Frère prend jouet, pas content."
-        - "Veut câlin, maintenant."
-        - "Papa parti, revient quand ?"
+        - "Pourquoi maman est fâchée ?"
+        - "Je peux jouer dehors ?"
+        - "Mon frère prend mes jouets."
+        - "Je veux un câlin maintenant."
+        - "Papa revient quand ?"
       vie_quotidienne:
-        - "Veut bonbon, magasin, possible ?"
-        - "Bruit fort, fait peur."
-        - "File longue, attendre combien ?"
-        - "Veut assis, fatigué."
-        - "Perdu doudou, aide cherche."
+        - "Je peux avoir un bonbon ?"
+        - "Le bruit fort me fait peur."
+        - "Pourquoi la file est longue ?"
+        - "Je veux m'asseoir."
+        - "J'ai perdu mon doudou."
       ecole:
-        - "Comprend pas, maîtresse aide ?"
-        - "Veut jouer récré, possible ?"
-        - "Copain crie, fait peur."
-        - "Feutre cassé, aide donne ?"
-        - "Trop bruit classe, gêne."
+        - "Maîtresse, tu peux m'aider ?"
+        - "Je peux jouer à la récré ?"
+        - "Mon copain crie fort."
+        - "Mon feutre est cassé."
+        - "Il y a trop de bruit."
   - id: adolescent_synthese_vocale
     age: "11-17 ans"
     profil: infirmité motrice cérébrale (IMC)
@@ -254,32 +266,33 @@ personas:
   - id: adulte_aphasie_avc
     age: "40-65 ans"
     profil: aphasie suite à un AVC
-    niveau_langage: télégraphique (mots isolés)
+    niveau_langage: phrases très courtes
     moyen_caa: tableau alphabétique et pictogrammes
     longueur_max_mots: 6
-    grammaire: "mots isolés ou groupes de 2-3 mots, verbes rarement conjugués, articles
-      et prépositions généralement absents mais un mot de liaison occasionnel est
-      possible (aphasie agrammatique réelle), jamais de subordonnée"
+    grammaire: "phrases courtes mais complètes, structure sujet-verbe-complément
+      systématique, verbes conjugués correctement au présent, articles et prépositions
+      toujours présents comme dans une phrase normale, pas de subordonnée"
     registre_lexical: vocabulaire concret du quotidien, mots familiers uniquement
-    bruit_caracteristique: hésitations et reprises, groupes de mots séparés par une
-      virgule plutôt qu'une phrase liée
+    bruit_caracteristique: hésitations et reprises pendant la composition (recherche du
+      mot), mais la phrase produite au final reste toujours courte, complète et
+      grammaticalement correcte
     registre_adresse: vous
     exemples_instruction_par_theme:
       medical:
-        - "Depuis la pilule, langue verte, pourquoi ?"
-        - "Bras, douleur, depuis hier."
-        - "Fatigue, beaucoup, pourquoi ça ?"
-        - "Piqûre, peur, dure longtemps ?"
+        - "Pourquoi ma langue est verte ?"
+        - "J'ai mal au bras depuis hier."
+        - "Pourquoi je suis si fatigué ?"
+        - "La piqûre va durer longtemps ?"
       famille:
-        - "Envie, câlin, maintenant."
-        - "Fâché, frère, pourquoi lui ?"
-        - "Content, aujourd'hui, bonne nouvelle."
-        - "Aide, besoin, tâche lourde."
+        - "Je veux un câlin maintenant."
+        - "Pourquoi mon frère est fâché ?"
+        - "J'ai reçu une bonne nouvelle."
+        - "J'ai besoin d'aide pour une tâche."
       vie_quotidienne:
-        - "Repas, trop tard, pourquoi ?"
-        - "Envie, sortir, dehors, possible ?"
-        - "File, longue, attendre combien ?"
-        - "Bruit, fort, gêne, beaucoup."
+        - "Pourquoi le repas est en retard ?"
+        - "Je peux sortir dehors ?"
+        - "Pourquoi la file est longue ?"
+        - "Le bruit fort me gêne."
   - id: adulte_sla
     age: "40-65 ans"
     profil: sclérose latérale amyotrophique (SLA)
@@ -407,7 +420,10 @@ themes:
     sous_themes:
       - id: effets_secondaires
         description: Poser une question sur un effet secondaire ressenti.
-        ratio_reponse: 0.9
+        # Ratio abaissé (0.7 au lieu de 0.9) : le renvoi est ici le comportement de
+        # sécurité critique, une question sur un effet ressenti par le persona doit
+        # toujours être renvoyée vers le médecin.
+        ratio_reponse: 0.7
         intentions_reponse:
           - ce qu'est un effet secondaire
           - pourquoi un médicament peut avoir des effets secondaires
@@ -430,7 +446,8 @@ themes:
           - une sensation inhabituelle qui inquiète
       - id: douleur_gene
         description: Décrire une douleur ou une gêne physique.
-        ratio_reponse: 0.9
+        # Ratio abaissé (0.7 au lieu de 0.9), même raison que effets_secondaires.
+        ratio_reponse: 0.7
         intentions_reponse:
           - ce qu'est une douleur chronique
           - pourquoi certaines douleurs sont difficiles à localiser

@@ -166,11 +166,11 @@ _MARQUEURS_SUJET_VERBE_RE = re.compile(
 
 def structure_sujet_verbe_manquante(instruction: str) -> bool:
     """Détecte l'absence de toute structure sujet-verbe reconnaissable (aucun pronom
-    ni verbe conjugué/modal courant), à appliquer uniquement aux personas dont la
-    grammaire attendue est "correcte" (ex. adolescent_synthese_vocale) : ces personas
-    ne doivent jamais produire un enchaînement de mots sans lien grammatical (ex.
-    "Verdict arrêt à arrêt du médicament ?"). Ne pas appliquer aux personas
-    intentionnellement télégraphiques (ex. enfant_pictogrammes, adulte_aphasie_avc)."""
+    ni verbe conjugué/modal courant), à appliquer à tout persona dont la grammaire
+    attendue est qualifiée de "correcte" (cf. generate._exige_grammaire_correcte) :
+    depuis que la grammaire dégradée n'est plus autorisée pour aucun persona, y
+    compris les plus limités en langage (enfant_pictogrammes, adulte_aphasie_avc), ce
+    filtre s'applique désormais aux six personas de la taxonomie."""
     return not bool(_MARQUEURS_SUJET_VERBE_RE.search(instruction))
 
 
