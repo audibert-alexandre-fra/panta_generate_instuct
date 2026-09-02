@@ -59,6 +59,11 @@ Dans le cas RENVOI, l'assistant ne dit jamais si c'est normal, grave ou bénin, 
 propose jamais de cause ni d'explication partielle : il dit seulement qu'il ne peut \
 pas répondre, et vers qui se tourner. Rien d'autre.
 
+Que ce soit en cas RÉPONSE ou RENVOI, l'output tient TOUJOURS en une seule phrase, \
+jamais plusieurs phrases séparées par un point : en RENVOI, l'objet de la question et \
+le destinataire sont reliés par une virgule ou une conjonction, jamais deux phrases \
+distinctes.
+
 Registre : {registre}
 
 Règles de style à respecter strictement :
@@ -67,7 +72,6 @@ Règles de style à respecter strictement :
 
 PERSONA_BLOC_TEMPLATE = """Persona :
 - Âge : {persona_age}
-- Profil : {persona_profil}
 - Niveau de langage : {persona_niveau_langage}
 - Moyen de CAA utilisé : {persona_moyen_caa}
 - Longueur maximale de l'instruction : {persona_longueur_max_mots} mots
@@ -103,10 +107,11 @@ Angle précis à adopter pour cette instruction : {intention}
 {cas_instruction_bloc}
 
 Règles impératives pour l'"instruction" :
-- Doit TOUJOURS être une phrase grammaticalement correcte et complète (article, \
-préposition et verbe conjugué présents comme il faut), quel que soit le persona : la \
-simplicité vient de la longueur, du vocabulaire et de la structure syntaxique, jamais \
-d'une grammaire dégradée — jamais une simple liste de mots-clés juxtaposés sans lien \
+- Doit TOUJOURS être UNE SEULE phrase grammaticalement correcte et complète (article, \
+préposition et verbe conjugué présents comme il faut), jamais plusieurs phrases \
+séparées par un point, quel que soit le persona : la simplicité vient de la longueur, \
+du vocabulaire et de la structure syntaxique, jamais d'une grammaire dégradée ni d'un \
+découpage en plusieurs phrases — jamais une simple liste de mots-clés juxtaposés sans lien \
 grammatical (mauvais exemples, à ne jamais produire : "couleur vert", "docteur pilule \
 vert langue pourquoi", "Maison pourquoi dire mal à docteur") et jamais une combinaison \
 de mots qui n'a pas de sens (mauvais exemples, à ne jamais produire : "Combien de \
@@ -156,11 +161,14 @@ préambule de l'output) : "{instruction}"
 {cas_output_bloc}
 
 Règles impératives pour l'"output" :
-- Français impeccable : orthographe et conjugaison correctes de chaque verbe, \
-phrase(s) complète(s), simple(s), registre FALC, adapté à l'âge et au profil du \
-persona. Le bruit (mots manquants, syntaxe télégraphique...) appartient uniquement à \
+- Français impeccable : orthographe et conjugaison correctes de chaque verbe, phrase \
+complète, simple, registre FALC, adaptée à l'âge et au niveau de langage du persona. \
+Le bruit (mots manquants, syntaxe télégraphique...) appartient uniquement à \
 l'instruction du persona ; il ne doit jamais apparaître dans l'output, même quand \
 l'instruction est bruitée ou télégraphique.
+- Tient TOUJOURS en UNE SEULE phrase, jamais plusieurs phrases séparées par un point, \
+y compris dans le cas RENVOI où les deux idées (objet de la question, destinataire) \
+sont reliées dans la même phrase par une virgule ou une conjonction.
 - Ne recopie jamais l'instruction en préambule.
 - N'utilise jamais l'impératif pour renvoyer la tâche au persona (interdit par ex. \
 "Demande-lui toi-même", "Il faut demander à ton camarade") : l'assistant ne délègue \
@@ -222,33 +230,38 @@ son problème ?", "Que veut dire le mot dissolution dans l'explication ?"."""
 
 
 CAS_REPONSE_OUTPUT_BLOC = """Cas de cet exemple : RÉPONSE.
-Donne une vraie réponse factuelle, courte, juste et adaptée à l'âge et au profil du \
-persona — jamais une esquive du type "je vais t'expliquer" sans contenu réel. Cette \
-réponse doit être valable pour n'importe qui, n'importe où, n'importe quand : si tu \
-constates qu'elle dépend en réalité du lieu, du moment ou de la personne, ne réponds \
-jamais comme si tu connaissais ce contexte précis (interdit par ex. "les toilettes \
-sont sur la gauche", "c'est normal que la machine fasse ce bruit").
-La réponse est donnée EN ENTIER, sans question en retour et sans annonce d'une \
-réponse qui ne vient jamais : interdit par ex. "Peux-tu me dire laquelle tu ne \
-comprends pas ?", "Que veux-tu faire pour te sentir mieux ?", "Veux-tu un siège plus \
-calme ?", "Je dois te donner plus de détails".
+Donne une vraie réponse factuelle, courte, juste et adaptée à l'âge et au niveau de \
+langage du persona — jamais une esquive du type "je vais t'expliquer" sans contenu \
+réel. Cette réponse doit être valable pour n'importe qui, n'importe où, n'importe \
+quand : si tu constates qu'elle dépend en réalité du lieu, du moment ou de la \
+personne, ne réponds jamais comme si tu connaissais ce contexte précis (interdit par \
+ex. "les toilettes sont sur la gauche", "c'est normal que la machine fasse ce bruit").
+La réponse est donnée EN ENTIER, en UNE SEULE phrase (jamais deux phrases séparées \
+par un point), sans question en retour et sans annonce d'une réponse qui ne vient \
+jamais : interdit par ex. "Peux-tu me dire laquelle tu ne comprends pas ?", "Que \
+veux-tu faire pour te sentir mieux ?", "Veux-tu un siège plus calme ?", "Je dois te \
+donner plus de détails".
 Si la question porte sur une durée, réponds en termes qualitatifs (ex. "plutôt \
 court", "ça dépend du besoin") : n'invente jamais de chiffre précis (interdit par ex. \
 "15 à 30 minutes", "entre quinze minutes et une heure", "plus d'un an").
-Consigne de forme pour cette réponse précise (varie d'un exemple à l'autre, à \
-respecter ici) : {format_directive}"""
+Consigne de forme pour cette réponse précise (varie d'un exemple à l'autre, mais \
+reste toujours en une seule phrase, à respecter ici) : {format_directive}"""
 
 CAS_RENVOI_OUTPUT_BLOC = """Cas de cet exemple : RENVOI — l'assistant n'est pas en position de savoir.
-Structure attendue, rien d'autre : une phrase qui nomme l'objet précis de la question \
-(pas la question en général), suivie d'une phrase qui indique vers qui se tourner.
-La première phrase doit nommer l'objet précis de la question, ET CONSERVER LE MOT \
+Structure attendue, rien d'autre : UNE SEULE phrase (jamais deux phrases séparées par \
+un point), composée de deux parties reliées par une virgule ou une conjonction : \
+d'abord la partie qui nomme l'objet précis de la question (pas la question en \
+général), ensuite la partie qui indique vers qui se tourner.
+La première partie doit nommer l'objet précis de la question, ET CONSERVER LE MOT \
 INTERROGATIF DE L'INSTRUCTION sans jamais en changer le sens : une instruction en \
 "si..." se reprend en "si...", une instruction en "pourquoi..." se reprend en \
 "pourquoi...", jamais l'inverse ni un autre mot interrogatif. Interdit (trop \
-générique, ou mot interrogatif changé) : "Je ne peux pas répondre à cela", "Je ne \
-sais pas quand ta sœur a fini" (si la question était "si elle a fini"). Attendu : "Je \
-ne sais pas pourquoi ta langue est verte", "Je ne sais pas si le train va avoir \
-beaucoup de retard".
+générique, mot interrogatif changé, ou deux phrases séparées par un point) : "Je ne \
+peux pas répondre à cela.", "Je ne sais pas quand ta sœur a fini. Demande à ta sœur." \
+(si la question était "si elle a fini"). Attendu, en une seule phrase : "Je ne sais \
+pas pourquoi ta langue est verte, c'est ton docteur qui peut te le dire.", "Je ne \
+sais pas si le train va avoir beaucoup de retard, il n'y a que l'agent qui puisse te \
+répondre."
 Destinataires possibles pour ce thème et ce persona : {destinataires_possibles}. \
 Choisis un seul destinataire DANS CETTE LISTE, celui qui correspond le mieux au \
 contenu de l'instruction (ex. une instruction qui parle d'un camarade se renvoie vers \
@@ -261,37 +274,41 @@ N'énumère jamais plusieurs destinataires et ne reprends jamais de parenthèses
 point médian.
 Aucune formulation candidate, aucune explication partielle, aucun avis sur \
 normal/grave/bénin, aucune cause proposée, même partielle.
-Modèle de style ci-dessous pour le ton et la deuxième phrase uniquement (le \
-destinataire y est encore générique : remplace-le par le destinataire choisi, et \
-remplace toujours l'ouverture générique par une phrase qui nomme l'objet précis de \
-CETTE question en conservant son mot interrogatif, jamais mot pour mot) : \
+Modèle de style ci-dessous pour le ton et la seconde partie de la phrase uniquement \
+(le destinataire y est encore générique : remplace-le par le destinataire choisi, et \
+fais-la précéder, dans la MÊME phrase reliée par une virgule ou une conjonction, de \
+la partie qui nomme l'objet précis de CETTE question en conservant son mot \
+interrogatif, jamais mot pour mot) : \
 "{variante_renvoi}\""""
 
 
-# Variantes de la phrase "je ne peux pas répondre à ça", tirées au sort pour éviter
-# qu'un patron unique ("Tu veux que je t'aide ?"-like) ne se répète sur tout le
+# Variantes de la seconde partie de phrase ("..., c'est {interlocuteur} qui peut te
+# répondre"), tirées au sort pour éviter qu'un patron unique ne se répète sur tout le
 # sous-ensemble RENVOI. {interlocuteur} est rempli avec Theme.interlocuteurs_pour().
+# Formulées en clause (pas en phrase autonome à majuscule) : elles se rattachent à la
+# première partie de la phrase par une virgule ou une conjonction, jamais par un point.
 RENVOI_PHRASES_VARIANTES = [
-    "Ça, je ne peux pas te le dire. C'est {interlocuteur} qui peut te répondre.",
-    "Je ne suis pas en mesure de répondre à ça. Il vaut mieux demander à {interlocuteur}.",
-    "Ce n'est pas à moi de répondre à cette question. Pose-la à {interlocuteur}.",
-    "Je n'ai pas cette information. C'est une question à poser à {interlocuteur}.",
-    "Là, je ne peux pas t'aider directement. {interlocuteur_maj} pourra te répondre.",
-    "Ce n'est pas quelque chose que je peux savoir. Demande plutôt à {interlocuteur}.",
-    "Je ne peux pas te donner de réponse sur ce point. Il n'y a que {interlocuteur} qui puisse te répondre.",
-    "Ça dépend de quelque chose que je ne connais pas, donc je ne peux pas répondre. {interlocuteur_maj} saura te dire.",
+    "c'est {interlocuteur} qui peut te répondre.",
+    "il vaut mieux demander à {interlocuteur}.",
+    "c'est une question à poser à {interlocuteur}.",
+    "{interlocuteur_maj} pourra te répondre.",
+    "il n'y a que {interlocuteur} qui puisse te répondre.",
+    "{interlocuteur_maj} saura te le dire.",
+    "c'est à {interlocuteur} de te répondre sur ce point.",
 ]
 
 
 # Variantes de forme pour le cas RÉPONSE, tirées au sort pour éviter que les outputs
-# ne commencent tous par le même enrobage (constat observé sur la v2).
+# ne commencent tous par le même enrobage (constat observé sur la v2). Toutes tiennent
+# en une seule phrase : la variation porte sur la présence d'une courte formule
+# d'introduction intégrée à cette même phrase et sur sa longueur, jamais sur le nombre
+# de phrases.
 FORMATS_REPONSE_VARIANTES = [
     "réponds directement, sans aucune formule d'introduction, en une seule phrase courte.",
-    "commence par une très courte phrase d'introduction (2-4 mots) qui annonce que la réponse arrive, sans réutiliser toujours la même formule, puis donne la réponse.",
-    "réponds en deux phrases courtes plutôt qu'une seule, sans préambule.",
+    "commence, dans la même phrase, par une très courte formule d'introduction (2-4 mots) qui annonce que la réponse arrive, sans réutiliser toujours la même formule, puis termine par la réponse.",
     "réponds directement en une seule phrase, sans aucun préambule ni formule de politesse.",
-    "réponds en une phrase de longueur moyenne, ni très courte ni longue, sans préambule.",
-    "donne la réponse directement puis ajoute une très courte phrase complémentaire si utile, sans préambule.",
+    "réponds en une seule phrase de longueur moyenne, ni très courte ni longue, sans préambule.",
+    "réponds en une seule phrase qui inclut une courte précision utile reliée par une virgule ou une conjonction, sans préambule.",
 ]
 
 
@@ -303,7 +320,6 @@ def build_system_prompt(style_guide: StyleGuide) -> str:
 def _persona_bloc(persona: Persona, exemple_instruction: str) -> str:
     return PERSONA_BLOC_TEMPLATE.format(
         persona_age=persona.age,
-        persona_profil=persona.profil,
         persona_niveau_langage=persona.niveau_langage,
         persona_moyen_caa=persona.moyen_caa,
         persona_longueur_max_mots=persona.longueur_max_mots,

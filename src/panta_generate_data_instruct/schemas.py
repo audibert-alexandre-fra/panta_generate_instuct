@@ -20,7 +20,6 @@ class Persona(BaseModel):
 
     id: str
     age: str
-    profil: str
     niveau_langage: str
     moyen_caa: str
     longueur_max_mots: int

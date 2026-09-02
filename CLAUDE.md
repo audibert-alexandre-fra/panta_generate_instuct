@@ -16,7 +16,13 @@ d'un **modèle multimodal**, ciblant des **patients utilisateurs de la CAA**
 - Pilote : un petit jeu d'exemples autour de **4 thèmes** — médical, famille, vie
   quotidienne, école — avec sous-thèmes, personas et quotas définis dans
   `src/panta_generate_data_instruct/config/taxonomy.yaml` (4 thèmes × 4 sous-thèmes ×
-  6 personas × 5 exemples = 480 exemples cible).
+  3 personas × 5 exemples = 240 exemples cible).
+- Personas : 3 personas organisés par **tranche d'âge et niveau de langage/vocabulaire**
+  (enfant, adolescent, adulte), jamais par profil médical ou type de handicap précis.
+- Chaque `instruction` et chaque `output` tiennent toujours en **une seule phrase**
+  (filtre de rejet dédié, cf. `filters.plusieurs_phrases`).
+- `ratio_reponse` (proportion de cas RÉPONSE vs RENVOI, par sous-thème) plafonné à
+  **0.8** partout, et à **0.5** sur tout le thème médical où se tromper est dangereux.
 
 ## État actuel
 
@@ -39,7 +45,7 @@ d'un **modèle multimodal**, ciblant des **patients utilisateurs de la CAA**
 - [ ] `dedup.py` — déduplication par embeddings (sentence-transformers)
 - [ ] `pipeline.py` — CLI d'orchestration de bout en bout
 - [ ] Test de `generate.py` sur serveur GPU (petit run, `--n-per-cell 1`, 96 exemples)
-- [ ] Génération du pilote (~480 exemples, 4 thèmes)
+- [ ] Génération du pilote (~240 exemples, 4 thèmes)
 - [ ] Revue qualité manuelle d'un échantillon du pilote
 - [ ] Export du dataset final dans `data/processed/`
 
@@ -56,7 +62,8 @@ d'un **modèle multimodal**, ciblant des **patients utilisateurs de la CAA**
 6. **dedup.py** : déduplication sémantique par embeddings pour éviter les exemples
    trop similaires au sein d'un même sous-thème/persona.
 7. **pipeline.py** : CLI orchestrant taxonomie → génération → judge → dedup → export.
-8. Lancer la génération pilote complète sur les 4 thèmes (`--n-per-cell 5`, 480 exemples),
+8. Lancer la génération pilote complète sur les 4 thèmes (`--n-per-cell 5`, ~240 exemples,
+   déjà configuré dans `generate.slurm`),
    d'abord avec Qwen3-8B, puis Qwen3-32B une fois le pipeline validé.
 9. Relire manuellement un échantillon (qualité du français, respect FALC, pertinence
    par persona) avant de considérer le pilote validé.

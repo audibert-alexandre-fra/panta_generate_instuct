@@ -50,6 +50,7 @@ from panta_generate_data_instruct.filters import (
     incorrections_frequentes,
     interrogatif_incoherent_en_renvoi,
     mot_anglais_isole,
+    plusieurs_phrases,
     reparer_elisions,
     reponse_evasive_ou_question,
     structure_sujet_verbe_manquante,
@@ -424,6 +425,12 @@ def _generate_instruction_pools(
                     "[%s] instruction rejetée (mot anglais isolé) : %s", tag, instruction,
                 )
                 continue
+            if plusieurs_phrases(instruction):
+                logger.warning(
+                    "[%s] instruction rejetée (plusieurs phrases au lieu d'une seule) : %s",
+                    tag, instruction,
+                )
+                continue
 
             candidate.instruction = instruction
 
@@ -596,6 +603,8 @@ def _generate_outputs(
             rejet = "guillemets non appariés ou ponctuation finale manquante (probable troncature)"
         elif mot_anglais_isole(output_text):
             rejet = "mot anglais isolé"
+        elif plusieurs_phrases(output_text):
+            rejet = "plusieurs phrases au lieu d'une seule"
         else:
             fautes = incorrections_frequentes(output_text)
             if fautes:

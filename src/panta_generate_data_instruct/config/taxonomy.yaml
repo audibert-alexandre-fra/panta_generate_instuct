@@ -1,10 +1,15 @@
 # Taxonomie du pilote : thèmes, sous-thèmes, personas et quotas.
 # Sert de graine à la génération (self-instruct) dans generate.py.
 #
-# Volume cible : 4 thèmes x 4 sous-thèmes x 6 personas x 5 exemples = 480 exemples,
+# Volume cible : 4 thèmes x 4 sous-thèmes x 3 personas x 5 exemples = 240 exemples,
 # redistribué par sous-thème selon la matrice de compatibilité `poids_personas` (les
 # combinaisons persona x sous-thème non plausibles ont un poids de 0 et leur part est
 # reportée sur les personas compatibles du même sous-thème).
+#
+# Personas : organisés par tranche d'âge et niveau de langage/vocabulaire (enfant,
+# adolescent, adulte), jamais par profil médical ou type de handicap précis — seul
+# compte le niveau de communication (longueur, vocabulaire, grammaire) attendu pour
+# cette tranche, pas le diagnostic sous-jacent.
 #
 # Comportement de l'assistant : un seul comportement, décliné en deux cas (cf.
 # prompts.py). RÉPONSE : l'assistant répond directement, de façon factuelle. RENVOI :
@@ -12,17 +17,25 @@
 # tourner (le destinataire varie selon le thème, cf. interlocuteur_par_persona). Le
 # critère de bascule n'est jamais le sujet mais la source de la réponse : dépend-elle
 # de cette personne, de ce lieu, de ce moment ? Si oui, RENVOI ; sinon, RÉPONSE.
-# Cible du jeu : 90 % RÉPONSE / 10 % RENVOI (ratio_reponse: 0.9 par défaut, 0.7 sur
-# effets_secondaires et douleur_gene où le renvoi est le comportement de sécurité
-# critique : une question sur un symptôme ressenti doit toujours être renvoyée vers le
-# médecin). Le split RÉPONSE/RENVOI est calculé par generate.py à l'échelle de CHAQUE
-# SOUS-THÈME (pas persona par persona) : le nombre de RENVOI est déterminé une seule
-# fois pour tout le sous-thème puis réparti entre les personas compatibles (méthode du
-# plus fort reste), avec un minimum d'un RENVOI garanti par sous-thème (cf.
-# _plan_cells / _distribuer_renvoi dans generate.py). Un arrondi indépendant par
-# persona (round(target * ratio_reponse)) ramenait le RENVOI à zéro dès que le quota
-# par persona descendait à 1 exemple (round(1 * 0.9) = 1, donc target_renvoi = 0) :
-# c'est ce qui avait fait disparaître entièrement le cas RENVOI du pilote.
+# Cible du jeu : au maximum 80 % RÉPONSE / 20 % RENVOI (ratio_reponse plafonné à 0.8,
+# tous thèmes hors médical), et au maximum 50 % RÉPONSE / 50 % RENVOI dans le thème
+# médical (ratio_reponse: 0.5 sur les quatre sous-thèmes) où se tromper est dangereux :
+# mieux vaut sur-renvoyer vers le médecin que répondre à tort, même sur une question de
+# connaissance générale. Le split RÉPONSE/RENVOI est calculé par generate.py à
+# l'échelle de CHAQUE SOUS-THÈME (pas persona par persona) : le nombre de RENVOI est
+# déterminé une seule fois pour tout le sous-thème puis réparti entre les personas
+# compatibles (méthode du plus fort reste), avec un minimum d'un RENVOI garanti par
+# sous-thème (cf. _plan_cells / _distribuer_renvoi dans generate.py). Un arrondi
+# indépendant par persona (round(target * ratio_reponse)) ramenait le RENVOI à zéro dès
+# que le quota par persona descendait à 1 exemple (round(1 * 0.9) = 1, donc
+# target_renvoi = 0) : c'est ce qui avait fait disparaître entièrement le cas RENVOI du
+# pilote.
+#
+# Chaque instruction et chaque output tiennent TOUJOURS en une seule phrase, jamais
+# plusieurs phrases séparées par un point (cf. filters.plusieurs_phrases, qui rejette
+# effectivement tout candidat qui ne le respecterait pas) : dans le cas RENVOI, l'objet
+# de la question et le destinataire sont reliés dans une seule phrase par une virgule
+# ou une conjonction, jamais deux phrases distinctes.
 #
 # Pour le cas RÉPONSE, deux axes supplémentaires sont tirés au sort en plus de
 # l'intention (cf. generate._generate_instruction_pools) : un concept concret propre
@@ -39,7 +52,7 @@ parametres_generation:
   # chaque cas (RÉPONSE/RENVOI) a son propre quota par cellule, un quota RENVOI de 1
   # exemple déclenche quand même une surgénération de `surgeneration_min` candidats
   # (12 par défaut) — potentiellement à revoir à la baisse pour éviter de surgénérer
-  # inutilement beaucoup sur des quotas RENVOI très faibles à 90/10.
+  # inutilement beaucoup sur des quotas RENVOI très faibles.
   surgeneration_min: 12
   surgeneration_max: 15
   # Seuil de similarité cosinus au-delà duquel une instruction générée est rejetée
@@ -66,12 +79,13 @@ style_guide:
     - "Le champ instruction reflète un message composé via un système de CAA ; son degré
       de simplicité (longueur, vocabulaire, complexité syntaxique) doit correspondre au
       niveau de langage et à l'exemple donnés pour le persona (voir personas
-      ci-dessous), mais il doit TOUJOURS être une phrase grammaticalement correcte et
-      complète, quel que soit le persona (par ex. \"Pourquoi j'ai mal au ventre ?\" est
-      correct). Une simple liste de mots juxtaposés sans lien grammatical (par ex.
-      \"docteur pilule vert langue pourquoi\"), une phrase à laquelle il manque un
-      article, une préposition ou un verbe conjugué (par ex. \"Maison pourquoi dire mal
-      à docteur\"), ou une combinaison de mots qui n'a pas de sens (par ex. \"Combien de
+      ci-dessous), mais il doit TOUJOURS être UNE SEULE phrase grammaticalement
+      correcte et complète, jamais plusieurs phrases séparées par un point, quel que
+      soit le persona (par ex. \"Pourquoi j'ai mal au ventre ?\" est correct). Une
+      simple liste de mots juxtaposés sans lien grammatical (par ex. \"docteur pilule
+      vert langue pourquoi\"), une phrase à laquelle il manque un article, une
+      préposition ou un verbe conjugué (par ex. \"Maison pourquoi dire mal à
+      docteur\"), ou une combinaison de mots qui n'a pas de sens (par ex. \"Combien de
       temps pour enfiler la ville ?\"), n'est jamais acceptable, quel que soit le
       persona : chaque mot choisi doit avoir un rapport clair avec le sous-thème et
       l'angle demandés."
@@ -84,7 +98,8 @@ style_guide:
       courte (interdit par ex. \"Verdict arrêt à arrêt du médicament ?\", \"docteur
       pilule vert langue pourquoi\") : la simplicité vient de la longueur, du
       vocabulaire et de la structure syntaxique, jamais de l'absence de grammaire."
-    - Le champ output est toujours une phrase complète, simple et adaptée au persona.
+    - "Le champ output tient TOUJOURS en UNE SEULE phrase, jamais plusieurs phrases
+      séparées par un point, complète, simple et adaptée au persona."
     - "Ni l'instruction ni l'output ne doivent inventer de détail contextuel précis qui
       n'est fourni nulle part (une date, une heure, l'agencement d'un lieu, un
       numéro, un nom propre...) : le sous-thème décrit une situation générique, pas un
@@ -105,27 +120,30 @@ style_guide:
       aider ?\"."
     - "Le cas RÉPONSE s'applique seulement si la réponse est la même pour n'importe
       qui, n'importe où, n'importe quand ; sinon c'est le cas RENVOI."
-    - "Dans le cas RENVOI, la première phrase de l'output nomme l'objet précis de la
-      question (jamais \"je ne peux pas répondre à cela/ça/ceci\", qui reste
-      générique) ; la spécificité qui justifie le renvoi vient toujours d'un
-      indexical (maintenant, ici, mon, ma, encore, aujourd'hui...), jamais d'un
+    - "Dans le cas RENVOI, l'output tient en une seule phrase composée de deux idées
+      reliées par une virgule ou une conjonction, jamais deux phrases séparées par un
+      point : d'abord la partie qui nomme l'objet précis de la question (jamais \"je ne
+      peux pas répondre à cela/ça/ceci\", qui reste générique), ensuite la partie qui
+      indique vers qui se tourner. La spécificité qui justifie le renvoi vient toujours
+      d'un indexical (maintenant, ici, mon, ma, encore, aujourd'hui...), jamais d'un
       détail inventé (interdit par ex. \"Comment Marie a résolu son problème ?\")."
-    - "Dans le cas RENVOI, l'output ne contient rien d'autre qu'une phrase disant que
-      l'assistant ne peut pas répondre et une phrase indiquant vers qui se tourner :
-      jamais d'avis sur normal/grave/bénin, jamais de cause ni d'explication
-      partielle, quel que soit le thème (pas seulement le médical)."
+    - "Dans le cas RENVOI, l'output ne contient rien d'autre que ces deux idées reliées
+      en une seule phrase : jamais d'avis sur normal/grave/bénin, jamais de cause ni
+      d'explication partielle, quel que soit le thème (pas seulement le médical)."
     - "Dans le cas RENVOI, la reprise conserve le mot interrogatif de l'instruction
       sans jamais en changer le sens (si/pourquoi/comment/quand/où/quel/combien) ; le
       destinataire choisi est toujours pris tel quel dans la liste fournie par le
       thème, jamais énuméré, modifié ou complété par une précision inventée, et jamais
       un destinataire absent de cette liste."
-    - "Dans le cas RÉPONSE, la réponse est donnée en entier : jamais de question
-      renvoyée au persona en fin d'output, jamais d'annonce d'une réponse qui ne
-      vient pas (interdit par ex. \"Je dois te donner plus de détails\"). Une question
-      sur une durée reçoit une réponse qualitative, jamais un chiffre inventé."
-    - "Les outputs varient de forme d'un exemple à l'autre (avec ou sans court
-      préambule, une ou plusieurs phrases, longueur variable) : aucun patron unique
-      (ex. \"Tu veux que je t'aide à... ?\") ne doit se répéter systématiquement."
+    - "Dans le cas RÉPONSE, la réponse est donnée en entier, en une seule phrase :
+      jamais de question renvoyée au persona en fin d'output, jamais d'annonce d'une
+      réponse qui ne vient pas (interdit par ex. \"Je dois te donner plus de
+      détails\"). Une question sur une durée reçoit une réponse qualitative, jamais un
+      chiffre inventé."
+    - "Les outputs varient de forme d'un exemple à l'autre (avec ou sans très courte
+      formule d'introduction intégrée à la même phrase, longueur variable), mais
+      tiennent TOUJOURS en une seule phrase : aucun patron unique (ex. \"Tu veux que
+      je t'aide à... ?\") ne doit se répéter systématiquement."
     - "L'output ne recopie jamais l'instruction en préambule (interdit par ex. de
       commencer par reformuler ce que le persona vient de dire avant de répondre)."
     - "L'output n'utilise jamais l'impératif pour renvoyer la tâche à l'utilisateur
@@ -158,10 +176,12 @@ types_question:
   - "une question de fonction (ex. \"à quoi ça sert...\")"
   - "une question de norme (ex. \"est-ce que c'est normal de...\")"
 
+# 3 personas, organisés par tranche d'âge et niveau de langage/vocabulaire (pas par
+# profil médical ou type de handicap) : seul le niveau de communication attendu
+# (longueur, vocabulaire, grammaire, moyen de CAA) est modélisé.
 personas:
-  - id: enfant_pictogrammes
-    age: "6-10 ans"
-    profil: trouble du spectre autistique
+  - id: enfant
+    age: "6-11 ans"
     niveau_langage: phrases très courtes et simples
     moyen_caa: tableau de pictogrammes
     longueur_max_mots: 6
@@ -199,17 +219,16 @@ personas:
         - "Mon copain crie fort."
         - "Mon feutre est cassé."
         - "Il y a trop de bruit."
-  - id: adolescent_synthese_vocale
-    age: "11-17 ans"
-    profil: infirmité motrice cérébrale (IMC)
+  - id: adolescent
+    age: "12-17 ans"
     niveau_langage: phrases courtes
-    moyen_caa: tablette à commande oculaire avec synthèse vocale
+    moyen_caa: tablette de communication avec synthèse vocale
     longueur_max_mots: 12
     grammaire: phrases simples sujet-verbe-complément, conjugaison correcte au présent,
       ponctuation simple
     registre_lexical: vocabulaire courant d'adolescent·e, familier mais correct
-    bruit_caracteristique: quasiment aucun bruit (saisie précise par commande oculaire) ;
-      phrases courtes surtout par fatigue de saisie, pas par erreur de forme
+    bruit_caracteristique: quasiment aucun bruit de forme ; phrases courtes surtout par
+      fatigue de saisie, pas par erreur de forme
     registre_adresse: tu
     exemples_instruction_par_theme:
       medical:
@@ -236,16 +255,16 @@ personas:
         - "Je veux participer plus en classe."
         - "Mon camarade a besoin d'aide, je peux ?"
         - "Je perds le fil, je sais pas où on en est."
-  - id: adulte_paralysie_cerebrale
-    age: "18-40 ans"
-    profil: paralysie cérébrale
-    niveau_langage: phrases courtes à moyennes
-    moyen_caa: clavier à défilement + synthèse vocale (contacteur)
+  - id: adulte
+    age: "18 ans et plus"
+    niveau_langage: phrases complètes, plus développées que les tranches précédentes
+    moyen_caa: dispositif de communication assistée (clavier à défilement ou commande
+      oculaire) avec synthèse vocale
     longueur_max_mots: 18
     grammaire: phrases complètes avec subordonnées simples possibles, conjugaison correcte
-    registre_lexical: vocabulaire adulte courant
-    bruit_caracteristique: aucun bruit particulier ; longueur modérée car la saisie au
-      défilement est lente, mais la forme finale est propre
+    registre_lexical: vocabulaire adulte courant, plus riche que les tranches précédentes
+    bruit_caracteristique: aucun bruit particulier ; longueur modérée car la saisie
+      assistée est lente, mais la forme finale est toujours propre
     registre_adresse: vous
     exemples_instruction_par_theme:
       medical:
@@ -253,111 +272,28 @@ personas:
         - "Je voudrais comprendre pourquoi un examen est nécessaire avant de l'accepter."
         - "J'aimerais qu'on m'explique la différence entre deux traitements possibles."
         - "Je ressens une gêne depuis quelques jours et je m'interroge."
+        - "Je me demande si la fatigue que je ressens en ce moment est liée à mon traitement."
       famille:
-        - "J'aimerais dire à mes parents que j'ai besoin d'un peu plus de temps seul."
+        - "J'aimerais dire à mes proches que j'ai besoin d'un peu plus de temps seul."
         - "Je voudrais exprimer ma joie après une bonne nouvelle reçue aujourd'hui."
-        - "J'aimerais demander de l'aide à mon frère pour une tâche difficile seul."
+        - "J'aimerais demander de l'aide à un proche pour une tâche difficile seul."
         - "Je voudrais raconter à ma famille un moment agréable de ma journée."
+        - "J'aimerais demander un peu plus de calme après une journée fatigante."
       vie_quotidienne:
         - "Je me demande pourquoi une démarche administrative prend autant de temps."
         - "Je souhaiterais savoir si je peux demander un délai supplémentaire pour une tâche."
         - "J'aimerais qu'on m'indique où trouver un service dans un magasin."
         - "Je voudrais demander si un trajet est facilement accessible."
-  - id: adulte_aphasie_avc
-    age: "40-65 ans"
-    profil: aphasie suite à un AVC
-    niveau_langage: phrases très courtes
-    moyen_caa: tableau alphabétique et pictogrammes
-    longueur_max_mots: 6
-    grammaire: "phrases courtes mais complètes, structure sujet-verbe-complément
-      systématique, verbes conjugués correctement au présent, articles et prépositions
-      toujours présents comme dans une phrase normale, pas de subordonnée"
-    registre_lexical: vocabulaire concret du quotidien, mots familiers uniquement
-    bruit_caracteristique: hésitations et reprises pendant la composition (recherche du
-      mot), mais la phrase produite au final reste toujours courte, complète et
-      grammaticalement correcte
-    registre_adresse: vous
-    exemples_instruction_par_theme:
-      medical:
-        - "Pourquoi ma langue est verte ?"
-        - "J'ai mal au bras depuis hier."
-        - "Pourquoi je suis si fatigué ?"
-        - "La piqûre va durer longtemps ?"
-      famille:
-        - "Je veux un câlin maintenant."
-        - "Pourquoi mon frère est fâché ?"
-        - "J'ai reçu une bonne nouvelle."
-        - "J'ai besoin d'aide pour une tâche."
-      vie_quotidienne:
-        - "Pourquoi le repas est en retard ?"
-        - "Je peux sortir dehors ?"
-        - "Pourquoi la file est longue ?"
-        - "Le bruit fort me gêne."
-  - id: adulte_sla
-    age: "40-65 ans"
-    profil: sclérose latérale amyotrophique (SLA)
-    niveau_langage: phrases complètes mais lentes à composer
-    moyen_caa: commande oculaire + synthèse vocale
-    longueur_max_mots: 20
-    grammaire: phrases complètes et grammaticalement correctes, subordonnées possibles
-    registre_lexical: vocabulaire adulte riche, orthographe soignée
-    bruit_caracteristique: aucun bruit ; phrases propres et bien formées malgré la
-      lenteur de composition, le dispositif attend la fin de la saisie
-    registre_adresse: vous
-    exemples_instruction_par_theme:
-      medical:
-        - "Est-ce qu'un médicament que je prends peut expliquer les taches vertes que j'ai vues sur ma langue ?"
-        - "Je me demande si la fatigue que je ressens en ce moment est liée à mon traitement."
-        - "Pourriez-vous m'aider à comprendre à quoi sert exactement un examen avant de l'accepter ?"
-        - "J'aimerais savoir combien de temps dure habituellement un traitement."
-      famille:
-        - "J'aimerais expliquer à ma famille que j'ai besoin de plus de temps pour répondre."
-        - "Je voudrais partager avec mes proches un moment agréable de ma journée."
-        - "J'aimerais demander à mon conjoint un peu plus de calme après une journée fatigante."
-      vie_quotidienne:
         - "Je voudrais savoir si je peux demander qu'on m'explique une information plus lentement."
-        - "Je me demande si un trajet est accessible sans trop de difficulté."
-        - "J'aimerais demander une alternative si un imprévu se présente."
-  - id: personne_agee_trouble_neuro
-    age: "65 ans et plus"
-    profil: séquelles d'AVC / trouble neurodégénératif
-    niveau_langage: phrases courtes
-    moyen_caa: tableau de communication papier et gestes
-    longueur_max_mots: 10
-    grammaire: phrases courtes mais correctes, conjugaison simple au présent, peu de
-      subordonnées
-    registre_lexical: vocabulaire courant, parfois quelques tournures un peu datées
-    bruit_caracteristique: quelques mots de liaison omis par fatigue de pointage, mais
-      structure de phrase toujours reconnaissable
-    registre_adresse: vous
-    exemples_instruction_par_theme:
-      medical:
-        - "Le médicament me fait voir du vert, c'est normal docteur ?"
-        - "J'ai du mal à me souvenir, c'est grave ?"
-        - "Je ressens une gêne depuis quelques jours, pourquoi ?"
-        - "Un traitement dure combien de temps, docteur ?"
-      famille:
-        - "Je voudrais un peu de calme, c'est possible ?"
-        - "J'aimerais dire à mes enfants que je suis fatigué aujourd'hui."
-        - "Je voudrais raconter un bon moment de ma journée."
-        - "J'aimerais un peu d'aide pour une tâche à la maison."
-      vie_quotidienne:
-        - "Pourquoi je dois attendre autant, ici ?"
-        - "J'aimerais qu'on m'aide pour une démarche administrative."
-        - "Je voudrais savoir où se trouve un service près d'ici."
-        - "Je préfère ne pas décider maintenant, c'est possible ?"
 
 themes:
   medical:
     label: Médical
     contexte: Questions et échanges d'un·e patient·e avec un·e spécialiste (médecin, kiné, orthophoniste...).
     interlocuteur_par_persona:
-      enfant_pictogrammes: [ton docteur]
-      adolescent_synthese_vocale: [ton médecin]
-      adulte_paralysie_cerebrale: [votre médecin, votre kinésithérapeute]
-      adulte_aphasie_avc: [votre médecin, votre orthophoniste]
-      adulte_sla: [votre médecin, votre kinésithérapeute]
-      personne_agee_trouble_neuro: [votre médecin]
+      enfant: [ton docteur]
+      adolescent: [ton médecin]
+      adulte: [votre médecin, votre kinésithérapeute, votre orthophoniste]
     # Amorces lexicales concrètes pour le cas RÉPONSE (≥ 40) : objets, notions et
     # phénomènes médicaux courants, jamais un symptôme personnel du persona (ça reste
     # le rôle des intentions_renvoi).
@@ -416,14 +352,15 @@ themes:
         examen de la vue ?\"), mais jamais donner un avis sur le cas personnel du
         persona, un diagnostic, ni confirmer ou infirmer qu'un symptôme précis du
         persona est normal."
-    quota_exemples: 120
+    quota_exemples: 60
+    # ratio_reponse plafonné à 0.5 sur les quatre sous-thèmes de ce thème (au lieu du
+    # plafond général de 0.8) : en médical, se tromper est dangereux, mieux vaut
+    # sur-renvoyer vers le médecin même sur une question de connaissance générale que
+    # de risquer une réponse incorrecte (cf. commentaire en tête de fichier).
     sous_themes:
       - id: effets_secondaires
         description: Poser une question sur un effet secondaire ressenti.
-        # Ratio abaissé (0.7 au lieu de 0.9) : le renvoi est ici le comportement de
-        # sécurité critique, une question sur un effet ressenti par le persona doit
-        # toujours être renvoyée vers le médecin.
-        ratio_reponse: 0.7
+        ratio_reponse: 0.5
         intentions_reponse:
           - ce qu'est un effet secondaire
           - pourquoi un médicament peut avoir des effets secondaires
@@ -446,8 +383,7 @@ themes:
           - une sensation inhabituelle qui inquiète
       - id: douleur_gene
         description: Décrire une douleur ou une gêne physique.
-        # Ratio abaissé (0.7 au lieu de 0.9), même raison que effets_secondaires.
-        ratio_reponse: 0.7
+        ratio_reponse: 0.5
         intentions_reponse:
           - ce qu'est une douleur chronique
           - pourquoi certaines douleurs sont difficiles à localiser
@@ -469,7 +405,7 @@ themes:
           - une douleur difficile à localiser
       - id: clarification_traitement
         description: Demander une clarification sur un traitement ou un examen.
-        ratio_reponse: 0.9
+        ratio_reponse: 0.5
         intentions_reponse:
           - ce qu'est un examen médical courant
           - la façon dont un examen se déroule habituellement
@@ -491,7 +427,7 @@ themes:
           - savoir ce qu'un terme entendu à mon sujet signifie exactement
       - id: preparation_rdv
         description: Préparer les questions à poser avant un rendez-vous.
-        ratio_reponse: 0.9
+        ratio_reponse: 0.5
         intentions_reponse:
           - ce qu'il faut apporter à un rendez-vous médical
           - la façon dont se déroule habituellement un premier rendez-vous chez un spécialiste
@@ -516,16 +452,11 @@ themes:
     contexte: Échanges avec les proches (parents, fratrie, enfants, conjoint·e).
     # "votre conjoint·e" (point médian) a été observé recopié tel quel dans des
     # outputs : remplacé par "votre partenaire", gender-neutre sans ponctuation
-    # inclusive. "votre fratrie" ajouté partout où un frère/une sœur peut être
-    # concerné, pour qu'une instruction qui parle d'un frère ou d'une sœur ait un
-    # destinataire correspondant dans la liste (cf. CAS_RENVOI_OUTPUT_BLOC).
+    # inclusive.
     interlocuteur_par_persona:
-      enfant_pictogrammes: [tes parents]
-      adolescent_synthese_vocale: [tes parents, ta fratrie]
-      adulte_paralysie_cerebrale: [vos parents, votre fratrie, votre partenaire]
-      adulte_aphasie_avc: [votre partenaire, vos enfants, votre fratrie]
-      adulte_sla: [votre partenaire, vos enfants, votre fratrie]
-      personne_agee_trouble_neuro: [vos enfants, vos proches]
+      enfant: [tes parents]
+      adolescent: [tes parents, ta fratrie]
+      adulte: [vos parents, votre fratrie, votre partenaire, vos enfants]
     concepts:
       - un anniversaire
       - un cadeau
@@ -572,11 +503,11 @@ themes:
       - un arbre généalogique
       - un bébé
     contraintes_specifiques: []
-    quota_exemples: 120
+    quota_exemples: 60
     sous_themes:
       - id: exprimer_emotion
         description: Exprimer une émotion (joie, colère, fatigue, inquiétude) à un proche.
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         intentions_reponse:
           - ce qu'est une émotion
           - pourquoi on ressent parfois de la colère
@@ -599,7 +530,7 @@ themes:
         description: "Demander de l'aide à un proche pour une tâche du quotidien, sans
           préciser la tâche par un détail non fourni (rester générique : \"une tâche à
           la maison\", jamais \"la vaisselle de ce soir\")."
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         intentions_reponse:
           - pourquoi il est plus facile de faire une tâche à plusieurs
           - pourquoi il est normal de demander de l'aide parfois
@@ -618,7 +549,7 @@ themes:
           - savoir si ça peut encore attendre un peu
       - id: raconter_journee
         description: Raconter sa journée ou un évènement vécu.
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         intentions_reponse:
           - pourquoi on aime bien raconter sa journée à ses proches
           - pourquoi une journée peut sembler plus longue qu'une autre
@@ -638,7 +569,7 @@ themes:
           - savoir si un proche est disponible pour écouter en ce moment
       - id: negocier_pause
         description: Négocier un moment calme ou une pause.
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         intentions_reponse:
           - pourquoi on a besoin de faire des pauses
           - pourquoi il est important de se reposer après un effort
@@ -661,12 +592,9 @@ themes:
     label: Vie quotidienne
     contexte: Situations de la vie courante hors cercle familial et scolaire.
     interlocuteur_par_persona:
-      enfant_pictogrammes: [la personne en face de toi, le vendeur, le serveur]
-      adolescent_synthese_vocale: [la personne en face de toi, le vendeur, le serveur, l'agent]
-      adulte_paralysie_cerebrale: [la personne en face de vous, le vendeur, le serveur, l'agent]
-      adulte_aphasie_avc: [la personne en face de vous, le vendeur, le serveur, l'agent]
-      adulte_sla: [la personne en face de vous, le vendeur, le serveur, l'agent]
-      personne_agee_trouble_neuro: [la personne en face de vous, le vendeur, le serveur, l'agent]
+      enfant: [la personne en face de toi, le vendeur, le serveur]
+      adolescent: [la personne en face de toi, le vendeur, le serveur, l'agent]
+      adulte: [la personne en face de vous, le vendeur, le serveur, l'agent]
     concepts:
       - un caddie
       - un ticket de caisse
@@ -711,11 +639,11 @@ themes:
       - un embouteillage
       - un jour de marché
     contraintes_specifiques: []
-    quota_exemples: 120
+    quota_exemples: 60
     sous_themes:
       - id: demande_lieu_public
         description: Faire une demande dans un lieu public (restaurant, magasin, transport).
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         intentions_reponse:
           - ce qu'est un rayon dans un magasin
           - comment fonctionne en général une caisse de supermarché
@@ -737,7 +665,7 @@ themes:
       - id: gerer_imprevu
         description: "Réagir à un imprévu (retard, changement, contretemps) sans détail
           précis sur les circonstances (pas de lieu, d'heure ni d'évènement inventé)."
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         intentions_reponse:
           - ce qu'est un imprévu
           - pourquoi les transports ont parfois du retard en général
@@ -757,7 +685,7 @@ themes:
           - savoir si on va être prévenu quand ça va changer
       - id: exprimer_preference_refus
         description: Exprimer une préférence ou un refus.
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         intentions_reponse:
           - pourquoi il est normal de vouloir réfléchir avant de choisir
           - ce qu'est une option
@@ -777,7 +705,7 @@ themes:
           - savoir jusqu'à quand on peut encore donner une réponse
       - id: demander_itineraire
         description: Demander son chemin ou une information d'orientation.
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         intentions_reponse:
           - ce qu'est un plan de quartier
           - comment lire un panneau de direction en général
@@ -807,8 +735,8 @@ themes:
     # question de procédure ou d'autorité (ex. le tour de parole dans un groupe) se
     # renvoie vers l'enseignant·e, pas vers un camarade au hasard.
     interlocuteur_par_persona:
-      enfant_pictogrammes: [ta maîtresse ou ton maître, un camarade]
-      adolescent_synthese_vocale: [ton ou ta prof, un camarade]
+      enfant: [ta maîtresse ou ton maître, un camarade]
+      adolescent: [ton ou ta prof, un camarade]
     concepts:
       - un cartable
       - un cahier
@@ -853,16 +781,13 @@ themes:
       - une sortie scolaire
       - un microscope
     contraintes_specifiques: []
-    quota_exemples: 120
+    quota_exemples: 60
     sous_themes:
       - id: question_enseignant
         description: Poser une question à un·e enseignant·e.
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         poids_personas:
-          adulte_paralysie_cerebrale: 0
-          adulte_aphasie_avc: 0
-          adulte_sla: 0
-          personne_agee_trouble_neuro: 0
+          adulte: 0
         intentions_reponse:
           - la définition d'un mot de vocabulaire courant
           - ce que veut dire un mot appris en classe
@@ -885,12 +810,9 @@ themes:
         description: "Demander ou proposer de l'aide à un·e camarade pour une activité
           scolaire, sans détail précis sur le contenu de l'activité (pas de matière,
           d'exercice ni de consigne inventés)."
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         poids_personas:
-          adulte_paralysie_cerebrale: 0
-          adulte_aphasie_avc: 0
-          adulte_sla: 0
-          personne_agee_trouble_neuro: 0
+          adulte: 0
         intentions_reponse:
           - pourquoi c'est important de s'entraider en classe
           - ce qu'est être un bon camarade
@@ -911,12 +833,9 @@ themes:
           - savoir si son camarade est d'accord pour faire ça ensemble maintenant
       - id: activite_groupe
         description: Participer à une activité de groupe.
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         poids_personas:
-          adulte_paralysie_cerebrale: 0
-          adulte_aphasie_avc: 0
-          adulte_sla: 0
-          personne_agee_trouble_neuro: 0
+          adulte: 0
         intentions_reponse:
           - ce qu'est un travail de groupe
           - pourquoi on travaille parfois en groupe à l'école
@@ -938,12 +857,9 @@ themes:
         description: "Signaler qu'on n'a pas compris quelque chose en classe (une
           consigne, une explication, une activité), sans détail précis sur le contenu
           (pas de matière ni de sujet inventés)."
-        ratio_reponse: 0.9
+        ratio_reponse: 0.8
         poids_personas:
-          adulte_paralysie_cerebrale: 0
-          adulte_aphasie_avc: 0
-          adulte_sla: 0
-          personne_agee_trouble_neuro: 0
+          adulte: 0
         intentions_reponse:
           - pourquoi il est normal de ne pas tout comprendre du premier coup
           - ce qu'est une explication

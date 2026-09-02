@@ -169,8 +169,8 @@ def structure_sujet_verbe_manquante(instruction: str) -> bool:
     ni verbe conjugué/modal courant), à appliquer à tout persona dont la grammaire
     attendue est qualifiée de "correcte" (cf. generate._exige_grammaire_correcte) :
     depuis que la grammaire dégradée n'est plus autorisée pour aucun persona, y
-    compris les plus limités en langage (enfant_pictogrammes, adulte_aphasie_avc), ce
-    filtre s'applique désormais aux six personas de la taxonomie."""
+    compris le plus limité en langage (enfant), ce filtre s'applique désormais aux
+    trois personas de la taxonomie."""
     return not bool(_MARQUEURS_SUJET_VERBE_RE.search(instruction))
 
 
@@ -339,3 +339,17 @@ def mot_anglais_isole(texte: str) -> bool:
     courte et non ambiguë : exclut par ex. "ok"/"okay", couramment utilisés comme
     emprunts en français familier."""
     return bool(_MOTS_ANGLAIS_RE.search(texte))
+
+
+# Un groupe de ponctuation finale (. ! ou ?, y compris une combinaison comme "?!" ou
+# une ellipse "...") compte pour une seule fin de phrase.
+_FIN_PHRASE_RE = re.compile(r"[.!?]+")
+
+
+def plusieurs_phrases(texte: str) -> bool:
+    """Détecte plus d'une phrase (plus d'un groupe de ponctuation finale . ! ou ?)
+    dans un texte : la consigne "une seule phrase" (cf. style_guide) s'applique aussi
+    bien à l'instruction qu'à l'output, y compris dans le cas RENVOI où les deux idées
+    (objet de la question, destinataire) doivent être reliées dans une seule phrase
+    (virgule ou conjonction) plutôt que présentées comme deux phrases distinctes."""
+    return len(_FIN_PHRASE_RE.findall(texte.strip())) > 1
