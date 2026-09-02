@@ -12,8 +12,10 @@ SousTheme.poids_personas) :
    sous-thème (pas persona par persona, cf. _distribuer_renvoi) pour garantir le ratio
    cible même à petit quota.
 2. Les instructions sont surgénérées (parametres_generation.surgeneration_min/max) en
-   plusieurs vagues ; chaque vague reçoit la liste des instructions déjà retenues pour
-   la cellule (consigne : ne pas y ressembler), passe par un troisième appel modèle de
+   plusieurs vagues ; chaque vague reçoit les MAX_DEJA_RETENUES dernières instructions
+   déjà retenues pour la cellule (consigne : ne pas y ressembler ; volontairement
+   borné, pas tout le pool, pour ne pas faire grossir le prompt sans limite au fil des
+   vagues), passe par un troisième appel modèle de
    validation binaire de cohérence sémantique (_filtrer_coherence_semantique, qui
    écarte le charabia avant la génération de l'output), puis un dédoublonnage
    sémantique (dedup.py) réduit le pool avant la vague suivante.
@@ -81,6 +83,12 @@ from panta_generate_data_instruct.schemas import (
 
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
 N_VAGUES = 3
+# Nombre max d'instructions déjà retenues listées dans le prompt (cf.
+# _generate_instruction_pools) : passer tout le pool (jusqu'à surgeneration_max) fait
+# grossir le prompt sans borne au fil des vagues, jusqu'à dépasser --max-model-len sur
+# les cellules dont le pool est plein. Les N plus récentes suffisent à éviter les
+# répétitions immédiates sans ce risque.
+MAX_DEJA_RETENUES = 5
 INSTRUCTION_SCHEMA = GeneratedInstruction.model_json_schema()
 OUTPUT_SCHEMA = GeneratedOutput.model_json_schema()
 COHERENCE_SCHEMA = CoherenceCheck.model_json_schema()
@@ -337,7 +345,7 @@ def _generate_instruction_pools(
         conversations = []
         wave_candidates: list[Candidate] = []
         for plan in active_plans:
-            deja_retenues = [c.instruction for c in pools[id(plan)]]
+            deja_retenues = [c.instruction for c in pools[id(plan)]][-MAX_DEJA_RETENUES:]
             for _ in range(wave_size[id(plan)]):
                 intentions = (
                     plan.sous_theme.intentions_reponse
