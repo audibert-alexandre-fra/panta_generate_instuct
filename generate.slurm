@@ -5,7 +5,7 @@
 #SBATCH --ntasks-per-node=1
 #SBATCH --cpus-per-task=4
 #SBATCH --hint=nomultithread
-#SBATCH --time=01:00:00
+#SBATCH --time=20:00:00
 #SBATCH --output=./logs_slurm/generate_instruct.out
 #SBATCH --error=./logs_slurm/generate_instruct.err
 #SBATCH --account=oou@h100
@@ -36,4 +36,17 @@ export TRANSFORMERS_OFFLINE=1
 PY_INCLUDE=$(uv run python -c "import sysconfig; print(sysconfig.get_paths()['include'])")
 export CPATH="${PY_INCLUDE}:${CPATH}"
 
-srun uv run python -u -m panta_generate_data_instruct.generate --model Qwen/Qwen3-32B --n-per-cell 5 --max-model-len 8192 --output data/raw/generated.jsonl --raw-log data/raw/generated_raw_log.json --log-level INFO
+# Calibration de l'échelle (cf. discussion sur surgeneration_max/intentions_renvoi) :
+# --n-per-cell 50 est la borne haute testée, ~7x le coût en appels modèle du run
+# n_per_cell=5 déjà validé. La durée est mesurée explicitement (date avant/après) car
+# rien dans generate.py ne loggue de durée totale, et sacct/seff ne donnent la durée
+# du job qu'après coup, pas dans ce fichier de logs.
+DEBUT=$(date +%s)
+echo "=== Début génération : $(date --iso-8601=seconds) ==="
+
+srun uv run python -u -m panta_generate_data_instruct.generate --model Qwen/Qwen3-32B --n-per-cell 50 --max-model-len 8192 --output data/raw/generated.jsonl --raw-log data/raw/generated_raw_log.json --log-level INFO
+
+FIN=$(date +%s)
+DUREE=$((FIN - DEBUT))
+echo "=== Fin génération : $(date --iso-8601=seconds) ==="
+echo "=== Durée totale génération : ${DUREE}s ($(($DUREE / 3600))h $((($DUREE % 3600) / 60))min) ==="

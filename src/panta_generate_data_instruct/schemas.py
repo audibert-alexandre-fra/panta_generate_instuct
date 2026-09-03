@@ -99,9 +99,11 @@ class ParametresGeneration(BaseModel):
     # Seuil de similarité cosinus (embeddings) au-delà duquel deux instructions sont
     # considérées comme des quasi-doublons.
     dedup_seuil_cosinus: float = 0.85
-    # Bornes du nombre de candidats surgénérés par cellule avant dédoublonnage.
+    # Plancher du nombre de candidats surgénérés par cellule avant dédoublonnage
+    # (cf. generate._plan_cells : overgen_count = max(surgeneration_min, cas_target x 3),
+    # sans plafond haut — un plafond fixe rendrait les cellules à gros quota
+    # structurellement incapables d'atteindre leur cible).
     surgeneration_min: int = 12
-    surgeneration_max: int = 15
     # Seuil de similarité cosinus (embeddings) au-delà duquel une instruction générée
     # est rejetée pour être trop proche de l'exemple_instruction fourni dans le prompt
     # (évite qu'un exemple de persona ne soit recopié quasiment tel quel).

@@ -11,7 +11,8 @@ SousTheme.poids_personas) :
    l'avance par _plan_cells, avec un split RÉPONSE/RENVOI calculé à l'échelle du
    sous-thème (pas persona par persona, cf. _distribuer_renvoi) pour garantir le ratio
    cible même à petit quota.
-2. Les instructions sont surgénérées (parametres_generation.surgeneration_min/max) en
+2. Les instructions sont surgénérées (cas_target x 3, plancher
+   parametres_generation.surgeneration_min, pas de plafond haut — cf. _plan_cells) en
    plusieurs vagues ; chaque vague reçoit les MAX_DEJA_RETENUES dernières instructions
    déjà retenues pour la cellule (consigne : ne pas y ressembler ; volontairement
    borné, pas tout le pool, pour ne pas faire grossir le prompt sans limite au fil des
@@ -84,10 +85,10 @@ from panta_generate_data_instruct.schemas import (
 DEFAULT_MODEL = "Qwen/Qwen3-8B"
 N_VAGUES = 3
 # Nombre max d'instructions déjà retenues listées dans le prompt (cf.
-# _generate_instruction_pools) : passer tout le pool (jusqu'à surgeneration_max) fait
-# grossir le prompt sans borne au fil des vagues, jusqu'à dépasser --max-model-len sur
-# les cellules dont le pool est plein. Les N plus récentes suffisent à éviter les
-# répétitions immédiates sans ce risque.
+# _generate_instruction_pools) : passer tout le pool fait grossir le prompt sans borne
+# au fil des vagues, jusqu'à dépasser --max-model-len sur les cellules dont le pool est
+# plein. Les N plus récentes suffisent à éviter les répétitions immédiates sans ce
+# risque.
 MAX_DEJA_RETENUES = 5
 INSTRUCTION_SCHEMA = GeneratedInstruction.model_json_schema()
 OUTPUT_SCHEMA = GeneratedOutput.model_json_schema()
@@ -262,7 +263,6 @@ def _plan_cells(
     taxonomy: Taxonomy,
     n_per_cell: int,
     surgeneration_min: int,
-    surgeneration_max: int,
 ) -> list[CellPlan]:
     """Calcule, pour chaque cellule compatible (poids > 0) et pour chaque cas
     (RÉPONSE/RENVOI), le nombre d'exemples cible et le nombre de candidats à
@@ -317,7 +317,14 @@ def _plan_cells(
                 for cas, cas_target in (("reponse", target_reponse), ("renvoi", target_renvoi)):
                     if cas_target <= 0:
                         continue
-                    overgen_count = max(surgeneration_min, min(surgeneration_max, cas_target * 3))
+                    # Pas de plafond haut : un plafond fixe (ex. l'ancien
+                    # surgeneration_max=15) rend la cellule structurellement incapable
+                    # d'atteindre son quota dès que cas_target le dépasse (le pool ne
+                    # peut jamais grandir au-delà du plafond, quel que soit le taux de
+                    # rejet). Seul surgeneration_min agit comme plancher, pour les
+                    # petits quotas (ex. cas_target=1) où cas_target * 3 serait trop
+                    # faible pour absorber les rejets.
+                    overgen_count = max(surgeneration_min, cas_target * 3)
                     plans.append(CellPlan(theme, sous_theme, persona, cas, cas_target, overgen_count))
     return plans
 
@@ -697,13 +704,11 @@ def generate_examples(
     max_tokens: int = 512,
     raw_log_path: Path | None = None,
     surgeneration_min: int | None = None,
-    surgeneration_max: int | None = None,
 ) -> list[InstructExample]:
     params = taxonomy.parametres_generation
     surgeneration_min = surgeneration_min if surgeneration_min is not None else params.surgeneration_min
-    surgeneration_max = surgeneration_max if surgeneration_max is not None else params.surgeneration_max
 
-    plans = _plan_cells(taxonomy, n_per_cell, surgeneration_min, surgeneration_max)
+    plans = _plan_cells(taxonomy, n_per_cell, surgeneration_min)
     logger.info(
         "Cellules compatibles : %d, exemples cible : %d",
         len(plans),
@@ -767,12 +772,6 @@ def main() -> None:
         default=None,
         help="Surcharge parametres_generation.surgeneration_min de la taxonomie.",
     )
-    parser.add_argument(
-        "--surgeneration-max",
-        type=int,
-        default=None,
-        help="Surcharge parametres_generation.surgeneration_max de la taxonomie.",
-    )
     parser.add_argument("--output", type=Path, default=Path("data/raw/generated.jsonl"))
     parser.add_argument(
         "--raw-log",
@@ -821,7 +820,6 @@ def main() -> None:
         args.max_tokens,
         raw_log_path=args.raw_log,
         surgeneration_min=args.surgeneration_min,
-        surgeneration_max=args.surgeneration_max,
     )
     save_jsonl(examples, args.output)
     print(f"{len(examples)} exemples écrits dans {args.output}")

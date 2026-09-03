@@ -47,14 +47,18 @@ parametres_generation:
   # Seuil de similarité cosinus (embeddings sentence-transformers) au-delà duquel deux
   # instructions du même sous-thème sont considérées comme des quasi-doublons.
   dedup_seuil_cosinus: 0.85
-  # Bornes du nombre de candidats surgénérés par cellule (thème x sous-thème x
-  # persona x cas) avant dédoublonnage et réduction au quota. À noter : depuis que
-  # chaque cas (RÉPONSE/RENVOI) a son propre quota par cellule, un quota RENVOI de 1
-  # exemple déclenche quand même une surgénération de `surgeneration_min` candidats
-  # (12 par défaut) — potentiellement à revoir à la baisse pour éviter de surgénérer
-  # inutilement beaucoup sur des quotas RENVOI très faibles.
+  # Plancher du nombre de candidats surgénérés par cellule (thème x sous-thème x
+  # persona x cas) avant dédoublonnage et réduction au quota. La formule réelle est
+  # max(surgeneration_min, cas_target * 3) (cf. generate._plan_cells), sans plafond
+  # haut : un plafond fixe rendrait les cellules à gros quota structurellement
+  # incapables d'atteindre leur cible dès que cas_target le dépasse (le pool ne peut
+  # jamais grandir au-delà du plafond, quel que soit le taux de rejet) — c'était le cas
+  # avec l'ancien `surgeneration_max: 15`, qui plafonnait déjà toute cellule à
+  # cas_target > 5. À noter : un quota RENVOI de 1 exemple déclenche quand même une
+  # surgénération de `surgeneration_min` candidats (12 par défaut) — potentiellement à
+  # revoir à la baisse pour éviter de surgénérer inutilement beaucoup sur des quotas
+  # RENVOI très faibles.
   surgeneration_min: 12
-  surgeneration_max: 15
   # Seuil de similarité cosinus au-delà duquel une instruction générée est rejetée
   # pour être trop proche de l'exemple_instruction fourni dans le prompt (fuite de
   # l'exemple du persona). À arbitrer : valeur de départ prudente, à resserrer si des
@@ -381,6 +385,14 @@ themes:
           - une gêne qui persiste depuis plusieurs jours
           - un changement physique remarqué depuis le début du traitement
           - une sensation inhabituelle qui inquiète
+          - une réaction sur la peau apparue après une prise récente
+          - une fatigue inhabituelle depuis le début du traitement
+          - des maux de tête ressentis depuis quelques jours de traitement
+          - un manque d'appétit remarqué cette semaine
+          - une sensation de vertige ressentie après une prise
+          - un trouble du sommeil depuis le début du traitement
+          - des nausées ressenties après une prise récente
+          - une somnolence inhabituelle depuis le début du traitement
       - id: douleur_gene
         description: Décrire une douleur ou une gêne physique.
         ratio_reponse: 0.5
@@ -403,6 +415,14 @@ themes:
           - une gêne qui revient régulièrement
           - une douleur qui s'aggrave quand on bouge
           - une douleur difficile à localiser
+          - une douleur ressentie depuis ce matin
+          - une gêne qui empêche de bien dormir depuis quelques nuits
+          - une douleur qui change d'intensité au cours de la journée
+          - une raideur ressentie au réveil ces derniers jours
+          - une douleur qui apparaît seulement dans certaines positions
+          - une gêne installée depuis la semaine dernière
+          - une douleur qui revient après un effort récent
+          - une sensation d'engourdissement ressentie aujourd'hui
       - id: clarification_traitement
         description: Demander une clarification sur un traitement ou un examen.
         ratio_reponse: 0.5
@@ -425,6 +445,14 @@ themes:
           - savoir pourquoi mon traitement a changé récemment
           - savoir si mon prochain rendez-vous est confirmé
           - savoir ce qu'un terme entendu à mon sujet signifie exactement
+          - savoir combien de temps va durer mon traitement actuel
+          - savoir pourquoi la dose de mon traitement a été ajustée
+          - savoir si mon traitement actuel doit être poursuivi comme prévu
+          - savoir pourquoi un nouvel examen a été ajouté à mon suivi
+          - savoir ce que le médecin a noté dans mon dossier la dernière fois
+          - savoir si un résultat d'examen récent a changé quelque chose
+          - savoir pourquoi mon traitement a été interrompu un moment
+          - savoir si une consigne donnée récemment s'applique encore
       - id: preparation_rdv
         description: Préparer les questions à poser avant un rendez-vous.
         ratio_reponse: 0.5
@@ -446,6 +474,14 @@ themes:
           - savoir si mon rendez-vous de la semaine va durer longtemps
           - savoir si le médecin va me poser une question précise cette fois-ci
           - savoir si mon dossier a bien été transmis avant mon rendez-vous
+          - savoir si mon prochain rendez-vous a été confirmé
+          - savoir pourquoi mon rendez-vous a été décalé récemment
+          - savoir si je dois apporter un document particulier cette fois-ci
+          - savoir si le même médecin me recevra la prochaine fois
+          - savoir combien de temps il reste avant mon prochain rendez-vous
+          - savoir si un examen a été ajouté à mon prochain rendez-vous
+          - savoir si je peux poser une question précise lors du prochain rendez-vous
+          - savoir si mon rendez-vous de la semaine prochaine est bien maintenu
 
   famille:
     label: Famille
@@ -526,6 +562,13 @@ themes:
           - savoir pourquoi un proche a l'air fâché aujourd'hui
           - savoir si un proche va comprendre ce qu'on ressent maintenant
           - savoir quand un proche va rentrer pour en parler
+          - savoir si un proche a remarqué que ça n'allait pas aujourd'hui
+          - savoir si un proche est disponible pour en parler maintenant
+          - savoir pourquoi un proche semble distant ces derniers jours
+          - savoir si un proche va être content d'une nouvelle du jour
+          - savoir si un proche a bien compris ce qui vient d'être dit
+          - savoir si c'est le bon moment pour parler de ce qu'on ressent
+          - savoir si un proche a aussi passé une journée difficile aujourd'hui
       - id: demander_aide_tache
         description: "Demander de l'aide à un proche pour une tâche du quotidien, sans
           préciser la tâche par un détail non fourni (rester générique : \"une tâche à
@@ -547,6 +590,13 @@ themes:
           - savoir si un proche est disponible pour aider maintenant
           - savoir combien de temps un proche va mettre pour venir aider
           - savoir si ça peut encore attendre un peu
+          - savoir si un proche a déjà commencé cette tâche
+          - savoir si quelqu'un d'autre peut aider à la place aujourd'hui
+          - savoir si un proche est occupé en ce moment
+          - savoir si la tâche doit être terminée avant ce soir
+          - savoir si un proche a le temps d'aider avant de partir
+          - savoir si quelqu'un a déjà proposé son aide pour ça
+          - savoir si un proche préfère aider plus tard dans la journée
       - id: raconter_journee
         description: Raconter sa journée ou un évènement vécu.
         ratio_reponse: 0.8
@@ -567,6 +617,13 @@ themes:
           - savoir si un proche a aussi passé une bonne journée aujourd'hui
           - savoir ce qu'un proche a prévu de faire demain
           - savoir si un proche est disponible pour écouter en ce moment
+          - savoir si un proche a des nouvelles à raconter aussi
+          - savoir si un proche a remarqué un changement d'humeur aujourd'hui
+          - savoir si un proche veut entendre les détails de la journée maintenant
+          - savoir si un proche a eu une journée aussi chargée
+          - savoir si un proche va être surpris par une nouvelle du jour
+          - savoir si c'est le bon moment pour raconter sa journée
+          - savoir si un proche a le temps d'écouter jusqu'au bout maintenant
       - id: negocier_pause
         description: Négocier un moment calme ou une pause.
         ratio_reponse: 0.8
@@ -587,6 +644,13 @@ themes:
           - savoir si un proche est d'accord pour attendre encore un peu
           - savoir combien de temps ça va encore durer
           - savoir si ça peut être repris plus tard
+          - savoir si un proche accepte une pause maintenant
+          - savoir si la pause en cours peut encore durer un peu
+          - savoir si un proche est pressé de reprendre l'activité
+          - savoir si le moment calme actuel va être interrompu bientôt
+          - savoir si un proche comprend le besoin de pause maintenant
+          - savoir si la pause d'aujourd'hui peut être un peu plus longue
+          - savoir si un proche préfère reprendre l'activité tout de suite
 
   vie_quotidienne:
     label: Vie quotidienne
@@ -662,6 +726,13 @@ themes:
           - savoir où se trouve quelque chose ici
           - savoir si on peut être aidé pour un achat maintenant
           - savoir si une place assise est disponible ici maintenant
+          - savoir si quelqu'un peut renseigner maintenant sur place
+          - savoir combien de temps il reste avant la fermeture ici
+          - savoir si un article est encore disponible aujourd'hui ici
+          - savoir si la file d'attente ici va être longue
+          - savoir si un moyen de paiement est accepté ici
+          - savoir si c'est le bon endroit pour cette demande
+          - savoir si quelqu'un peut aider à porter quelque chose maintenant
       - id: gerer_imprevu
         description: "Réagir à un imprévu (retard, changement, contretemps) sans détail
           précis sur les circonstances (pas de lieu, d'heure ni d'évènement inventé)."
@@ -683,6 +754,13 @@ themes:
           - savoir combien de temps ça va encore durer
           - savoir pourquoi ça arrive maintenant
           - savoir si on va être prévenu quand ça va changer
+          - savoir s'il faut changer de trajet maintenant à cause de l'imprévu
+          - savoir si quelqu'un peut aider face à cet imprévu maintenant
+          - savoir si la situation actuelle va se résoudre bientôt
+          - savoir si un rendez-vous du jour est encore possible malgré l'imprévu
+          - savoir si l'imprévu du jour concerne aussi d'autres personnes ici
+          - savoir vers qui se tourner pour cet imprévu maintenant
+          - savoir si ça vaut la peine d'attendre ici encore un peu
       - id: exprimer_preference_refus
         description: Exprimer une préférence ou un refus.
         ratio_reponse: 0.8
@@ -703,6 +781,13 @@ themes:
           - savoir si on peut avoir plus de temps pour décider maintenant
           - savoir si une autre option est disponible ici
           - savoir jusqu'à quand on peut encore donner une réponse
+          - savoir si le choix fait aujourd'hui peut encore être changé
+          - savoir si un refus exprimé maintenant pose un problème ici
+          - savoir si une autre personne peut décider à la place aujourd'hui
+          - savoir si cette option précise est encore proposée aujourd'hui
+          - savoir si un temps de réflexion supplémentaire est possible ici
+          - savoir si la décision d'aujourd'hui engage pour la suite
+          - savoir si un choix différent peut être fait un peu plus tard
       - id: demander_itineraire
         description: Demander son chemin ou une information d'orientation.
         ratio_reponse: 0.8
@@ -723,6 +808,13 @@ themes:
           - savoir quel chemin prendre à partir d'ici
           - savoir si le trajet est accessible facilement
           - savoir si on est dans la bonne direction maintenant
+          - savoir combien de temps il reste avant d'arriver à destination
+          - savoir si un raccourci existe à partir d'ici
+          - savoir si le trajet actuel évite les escaliers
+          - savoir si quelqu'un peut accompagner sur ce trajet maintenant
+          - savoir si un arrêt est encore loin d'ici
+          - savoir si le chemin habituel est praticable aujourd'hui
+          - savoir si on vient de rater un embranchement important
 
   ecole:
     label: École
@@ -806,6 +898,13 @@ themes:
           - savoir pourquoi il y a une règle comme ça
           - savoir ce qu'il faut faire ensuite maintenant
           - savoir pourquoi le professeur a dit ça
+          - savoir si l'explication donnée va être répétée
+          - savoir si une consigne du jour concerne tout le monde ici
+          - savoir si un exercice du jour doit être terminé maintenant
+          - savoir pourquoi le programme a changé aujourd'hui
+          - savoir si une remarque faite en classe le concernait
+          - savoir si un délai donné aujourd'hui peut être prolongé
+          - savoir si un devoir du jour est encore attendu demain
       - id: aide_camarade
         description: "Demander ou proposer de l'aide à un·e camarade pour une activité
           scolaire, sans détail précis sur le contenu de l'activité (pas de matière,
@@ -831,6 +930,13 @@ themes:
           - savoir si son camarade a besoin d'aide en ce moment
           - savoir si son camarade a compris
           - savoir si son camarade est d'accord pour faire ça ensemble maintenant
+          - savoir si un camarade a déjà terminé l'activité en cours
+          - savoir si un camarade est disponible pour aider maintenant
+          - savoir si un camarade a bien reçu l'explication donnée
+          - savoir si un camarade préfère continuer seul aujourd'hui
+          - savoir si un camarade a besoin qu'on répète l'explication
+          - savoir si un camarade est d'accord pour échanger le matériel maintenant
+          - savoir si un camarade a compris la même chose
       - id: activite_groupe
         description: Participer à une activité de groupe.
         ratio_reponse: 0.8
@@ -853,6 +959,13 @@ themes:
           - savoir comment se répartir les tâches maintenant
           - savoir si c'est bientôt son tour
           - savoir si tout le monde est d'accord maintenant
+          - savoir si le groupe a déjà commencé l'activité
+          - savoir combien de temps il reste pour terminer l'activité du groupe
+          - savoir si un rôle a déjà été attribué à quelqu'un dans le groupe
+          - savoir si le groupe est d'accord sur l'idée proposée aujourd'hui
+          - savoir si le groupe doit rendre un travail terminé maintenant
+          - savoir qui doit présenter le travail du groupe cette fois
+          - savoir si le groupe a encore besoin d'aide maintenant
       - id: signaler_incomprehension
         description: "Signaler qu'on n'a pas compris quelque chose en classe (une
           consigne, une explication, une activité), sans détail précis sur le contenu
@@ -877,3 +990,10 @@ themes:
           - savoir pourquoi ça a été trop vite
           - savoir ce qu'un mot veut dire
           - savoir à quel moment on a décroché
+          - savoir si l'explication donnée va être reprise autrement
+          - savoir si quelqu'un peut réexpliquer ce point maintenant
+          - savoir si tout le monde a compris la même chose aujourd'hui
+          - savoir si une pause est possible avant de continuer
+          - savoir si un exemple supplémentaire va être donné
+          - savoir si la consigne du jour est bien celle qui a été comprise
+          - savoir si ce point sera revu plus tard dans la journée
