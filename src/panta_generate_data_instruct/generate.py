@@ -61,6 +61,7 @@ from panta_generate_data_instruct.filters import (
 from panta_generate_data_instruct.prompts import (
     COHERENCE_SYSTEM_PROMPT,
     RELECTURE_SYSTEM_PROMPT,
+    STRUCTURES_RENVOI,
     CasType,
     build_coherence_check_prompt,
     build_instruction_prompt,
@@ -510,6 +511,25 @@ def _generate_instruction_pools(
     return final
 
 
+def _planifier_structures_renvoi(n: int) -> list[str]:
+    """Alloue une des quatre structures de sortie RENVOI (cf. STRUCTURES_RENVOI dans
+    prompts.py) à chacun des n candidats RENVOI de cette génération : round-robin sur
+    un ordre de structures mélangé, puis l'ordre d'attribution résultant est lui-même
+    mélangé pour alterner les structures d'un exemple à l'autre plutôt que de les
+    grouper en blocs. Le round-robin minimise mécaniquement la part maximale prise par
+    une seule structure (au plus ceil(n/4) occurrences), ce qui respecte le plafond
+    voulu de 35% dès que l'effectif le permet mathématiquement (à partir d'une dizaine
+    d'exemples environ) ; en dessous, une structure peut dominer par construction (ex.
+    n=1 → 100%), aucune répartition n'y échapperait."""
+    if n <= 0:
+        return []
+    ids = list(STRUCTURES_RENVOI)
+    random.shuffle(ids)
+    alloc = [ids[i % len(ids)] for i in range(n)]
+    random.shuffle(alloc)
+    return alloc
+
+
 def _generate_outputs(
     llm: LLM,
     taxonomy: Taxonomy,
@@ -519,12 +539,21 @@ def _generate_outputs(
 ) -> tuple[list[InstructExample], list[dict]]:
     system_prompt = build_system_prompt(taxonomy.style_guide)
 
+    # Structure de sortie RENVOI (cf. _planifier_structures_renvoi) allouée une seule
+    # fois pour tout le lot de candidats de cette génération, afin de plafonner la part
+    # de chaque structure sur l'ensemble plutôt que par sous-groupe.
+    renvoi_ids = [id(c) for c in candidates if c.cas == "renvoi"]
+    structures_renvoi = dict(zip(renvoi_ids, _planifier_structures_renvoi(len(renvoi_ids))))
+
     conversations = []
     for candidate in candidates:
         variante_renvoi = None
         format_directive = None
+        structure_renvoi = None
         if candidate.cas == "renvoi":
-            variante_renvoi = choisir_variante_renvoi(candidate.plan.theme, candidate.plan.persona)
+            structure_renvoi = structures_renvoi[id(candidate)]
+            if structure_renvoi == "orientation_personne":
+                variante_renvoi = choisir_variante_renvoi(candidate.plan.theme, candidate.plan.persona)
         else:
             format_directive = choisir_format_reponse()
         prompt = build_output_prompt(
@@ -536,6 +565,7 @@ def _generate_outputs(
             candidate.exemple_instruction,
             variante_renvoi=variante_renvoi,
             format_directive=format_directive,
+            structure_renvoi=structure_renvoi,
         )
         conversations.append(
             [
@@ -568,6 +598,7 @@ def _generate_outputs(
             "sous_theme": candidate.plan.sous_theme.id,
             "persona_id": candidate.plan.persona.id,
             "type_attendu": candidate.cas,
+            "structure_renvoi": structures_renvoi.get(id(candidate)),
             "intention": candidate.intention,
             "instruction": candidate.instruction,
             "output_prompt": conversation[1]["content"],

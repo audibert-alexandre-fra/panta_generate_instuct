@@ -21,8 +21,8 @@ d'un **modèle multimodal**, ciblant des **patients utilisateurs de la CAA**
   (enfant, adolescent, adulte), jamais par profil médical ou type de handicap précis.
 - Chaque `instruction` et chaque `output` tiennent toujours en **une seule phrase**
   (filtre de rejet dédié, cf. `filters.plusieurs_phrases`).
-- `ratio_reponse` (proportion de cas RÉPONSE vs RENVOI, par sous-thème) plafonné à
-  **0.8** partout, et à **0.5** sur tout le thème médical où se tromper est dangereux.
+- `ratio_reponse` (proportion de cas RÉPONSE vs RENVOI, par sous-thème) fixé à **0.95**
+  partout, y compris sur le thème médical (5 % de RENVOI, uniforme sur les 4 thèmes).
 
 ## État actuel
 

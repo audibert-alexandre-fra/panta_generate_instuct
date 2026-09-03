@@ -17,11 +17,8 @@
 # tourner (le destinataire varie selon le thème, cf. interlocuteur_par_persona). Le
 # critère de bascule n'est jamais le sujet mais la source de la réponse : dépend-elle
 # de cette personne, de ce lieu, de ce moment ? Si oui, RENVOI ; sinon, RÉPONSE.
-# Cible du jeu : au maximum 80 % RÉPONSE / 20 % RENVOI (ratio_reponse plafonné à 0.8,
-# tous thèmes hors médical), et au maximum 50 % RÉPONSE / 50 % RENVOI dans le thème
-# médical (ratio_reponse: 0.5 sur les quatre sous-thèmes) où se tromper est dangereux :
-# mieux vaut sur-renvoyer vers le médecin que répondre à tort, même sur une question de
-# connaissance générale. Le split RÉPONSE/RENVOI est calculé par generate.py à
+# Cible du jeu : 95 % RÉPONSE / 5 % RENVOI (ratio_reponse: 0.95), uniforme sur les
+# quatre thèmes, y compris le thème médical. Le split RÉPONSE/RENVOI est calculé par generate.py à
 # l'échelle de CHAQUE SOUS-THÈME (pas persona par persona) : le nombre de RENVOI est
 # déterminé une seule fois pour tout le sous-thème puis réparti entre les personas
 # compatibles (méthode du plus fort reste), avec un minimum d'un RENVOI garanti par
@@ -357,14 +354,13 @@ themes:
         persona, un diagnostic, ni confirmer ou infirmer qu'un symptôme précis du
         persona est normal."
     quota_exemples: 60
-    # ratio_reponse plafonné à 0.5 sur les quatre sous-thèmes de ce thème (au lieu du
-    # plafond général de 0.8) : en médical, se tromper est dangereux, mieux vaut
-    # sur-renvoyer vers le médecin même sur une question de connaissance générale que
-    # de risquer une réponse incorrecte (cf. commentaire en tête de fichier).
+    # ratio_reponse: 0.95 sur les quatre sous-thèmes de ce thème, comme sur les trois
+    # autres thèmes (cf. commentaire en tête de fichier) : pas de traitement différencié
+    # du médical sur ce split RÉPONSE/RENVOI.
     sous_themes:
       - id: effets_secondaires
         description: Poser une question sur un effet secondaire ressenti.
-        ratio_reponse: 0.5
+        ratio_reponse: 0.95
         intentions_reponse:
           - ce qu'est un effet secondaire
           - pourquoi un médicament peut avoir des effets secondaires
@@ -395,7 +391,7 @@ themes:
           - une somnolence inhabituelle depuis le début du traitement
       - id: douleur_gene
         description: Décrire une douleur ou une gêne physique.
-        ratio_reponse: 0.5
+        ratio_reponse: 0.95
         intentions_reponse:
           - ce qu'est une douleur chronique
           - pourquoi certaines douleurs sont difficiles à localiser
@@ -425,7 +421,7 @@ themes:
           - une sensation d'engourdissement ressentie aujourd'hui
       - id: clarification_traitement
         description: Demander une clarification sur un traitement ou un examen.
-        ratio_reponse: 0.5
+        ratio_reponse: 0.95
         intentions_reponse:
           - ce qu'est un examen médical courant
           - la façon dont un examen se déroule habituellement
@@ -455,7 +451,7 @@ themes:
           - savoir si une consigne donnée récemment s'applique encore
       - id: preparation_rdv
         description: Préparer les questions à poser avant un rendez-vous.
-        ratio_reponse: 0.5
+        ratio_reponse: 0.95
         intentions_reponse:
           - ce qu'il faut apporter à un rendez-vous médical
           - la façon dont se déroule habituellement un premier rendez-vous chez un spécialiste
@@ -543,7 +539,7 @@ themes:
     sous_themes:
       - id: exprimer_emotion
         description: Exprimer une émotion (joie, colère, fatigue, inquiétude) à un proche.
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         intentions_reponse:
           - ce qu'est une émotion
           - pourquoi on ressent parfois de la colère
@@ -573,7 +569,7 @@ themes:
         description: "Demander de l'aide à un proche pour une tâche du quotidien, sans
           préciser la tâche par un détail non fourni (rester générique : \"une tâche à
           la maison\", jamais \"la vaisselle de ce soir\")."
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         intentions_reponse:
           - pourquoi il est plus facile de faire une tâche à plusieurs
           - pourquoi il est normal de demander de l'aide parfois
@@ -599,7 +595,7 @@ themes:
           - savoir si un proche préfère aider plus tard dans la journée
       - id: raconter_journee
         description: Raconter sa journée ou un évènement vécu.
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         intentions_reponse:
           - pourquoi on aime bien raconter sa journée à ses proches
           - pourquoi une journée peut sembler plus longue qu'une autre
@@ -626,7 +622,7 @@ themes:
           - savoir si un proche a le temps d'écouter jusqu'au bout maintenant
       - id: negocier_pause
         description: Négocier un moment calme ou une pause.
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         intentions_reponse:
           - pourquoi on a besoin de faire des pauses
           - pourquoi il est important de se reposer après un effort
@@ -707,7 +703,7 @@ themes:
     sous_themes:
       - id: demande_lieu_public
         description: Faire une demande dans un lieu public (restaurant, magasin, transport).
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         intentions_reponse:
           - ce qu'est un rayon dans un magasin
           - comment fonctionne en général une caisse de supermarché
@@ -736,7 +732,7 @@ themes:
       - id: gerer_imprevu
         description: "Réagir à un imprévu (retard, changement, contretemps) sans détail
           précis sur les circonstances (pas de lieu, d'heure ni d'évènement inventé)."
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         intentions_reponse:
           - ce qu'est un imprévu
           - pourquoi les transports ont parfois du retard en général
@@ -763,7 +759,7 @@ themes:
           - savoir si ça vaut la peine d'attendre ici encore un peu
       - id: exprimer_preference_refus
         description: Exprimer une préférence ou un refus.
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         intentions_reponse:
           - pourquoi il est normal de vouloir réfléchir avant de choisir
           - ce qu'est une option
@@ -790,7 +786,7 @@ themes:
           - savoir si un choix différent peut être fait un peu plus tard
       - id: demander_itineraire
         description: Demander son chemin ou une information d'orientation.
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         intentions_reponse:
           - ce qu'est un plan de quartier
           - comment lire un panneau de direction en général
@@ -877,7 +873,7 @@ themes:
     sous_themes:
       - id: question_enseignant
         description: Poser une question à un·e enseignant·e.
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         poids_personas:
           adulte: 0
         intentions_reponse:
@@ -909,7 +905,7 @@ themes:
         description: "Demander ou proposer de l'aide à un·e camarade pour une activité
           scolaire, sans détail précis sur le contenu de l'activité (pas de matière,
           d'exercice ni de consigne inventés)."
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         poids_personas:
           adulte: 0
         intentions_reponse:
@@ -939,7 +935,7 @@ themes:
           - savoir si un camarade a compris la même chose
       - id: activite_groupe
         description: Participer à une activité de groupe.
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         poids_personas:
           adulte: 0
         intentions_reponse:
@@ -970,7 +966,7 @@ themes:
         description: "Signaler qu'on n'a pas compris quelque chose en classe (une
           consigne, une explication, une activité), sans détail précis sur le contenu
           (pas de matière ni de sujet inventés)."
-        ratio_reponse: 0.8
+        ratio_reponse: 0.95
         poids_personas:
           adulte: 0
         intentions_reponse:

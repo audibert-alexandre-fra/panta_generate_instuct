@@ -59,10 +59,12 @@ Dans le cas RENVOI, l'assistant ne dit jamais si c'est normal, grave ou bénin, 
 propose jamais de cause ni d'explication partielle : il dit seulement qu'il ne peut \
 pas répondre, et vers qui se tourner. Rien d'autre.
 
-Que ce soit en cas RÉPONSE ou RENVOI, l'output tient TOUJOURS en une seule phrase, \
-jamais plusieurs phrases séparées par un point : en RENVOI, l'objet de la question et \
-le destinataire sont reliés par une virgule ou une conjonction, jamais deux phrases \
-distinctes.
+Que ce soit en cas RÉPONSE ou RENVOI, l'output respecte TOUJOURS cette forme : une \
+seule phrase, sans subordonnée, jamais plusieurs phrases séparées par un point. Deux \
+idées maximum, reliées par un seul connecteur (virgule ou conjonction de \
+coordination), jamais par une conjonction de subordination (parce que, que, qui, \
+quand...). En RENVOI, l'objet de la question et le destinataire sont ces deux idées, \
+reliées par ce connecteur unique, jamais deux phrases distinctes.
 
 Registre : {registre}
 
@@ -166,9 +168,11 @@ complète, simple, registre FALC, adaptée à l'âge et au niveau de langage du 
 Le bruit (mots manquants, syntaxe télégraphique...) appartient uniquement à \
 l'instruction du persona ; il ne doit jamais apparaître dans l'output, même quand \
 l'instruction est bruitée ou télégraphique.
-- Tient TOUJOURS en UNE SEULE phrase, jamais plusieurs phrases séparées par un point, \
-y compris dans le cas RENVOI où les deux idées (objet de la question, destinataire) \
-sont reliées dans la même phrase par une virgule ou une conjonction.
+- Forme imposée : UNE SEULE phrase, SANS SUBORDONNÉE, jamais plusieurs phrases séparées \
+par un point. DEUX IDÉES MAXIMUM, reliées par UN SEUL CONNECTEUR (virgule ou \
+conjonction de coordination), jamais par une conjonction de subordination (parce que, \
+que, qui, quand...), y compris dans le cas RENVOI où les deux idées (objet de la \
+question, destinataire) sont reliées dans la même phrase par ce connecteur unique.
 - Ne recopie jamais l'instruction en préambule.
 - N'utilise jamais l'impératif pour renvoyer la tâche au persona (interdit par ex. \
 "Demande-lui toi-même", "Il faut demander à ton camarade") : l'assistant ne délègue \
@@ -236,11 +240,12 @@ réel. Cette réponse doit être valable pour n'importe qui, n'importe où, n'im
 quand : si tu constates qu'elle dépend en réalité du lieu, du moment ou de la \
 personne, ne réponds jamais comme si tu connaissais ce contexte précis (interdit par \
 ex. "les toilettes sont sur la gauche", "c'est normal que la machine fasse ce bruit").
-La réponse est donnée EN ENTIER, en UNE SEULE phrase (jamais deux phrases séparées \
-par un point), sans question en retour et sans annonce d'une réponse qui ne vient \
-jamais : interdit par ex. "Peux-tu me dire laquelle tu ne comprends pas ?", "Que \
-veux-tu faire pour te sentir mieux ?", "Veux-tu un siège plus calme ?", "Je dois te \
-donner plus de détails".
+La réponse est donnée EN ENTIER, en UNE SEULE phrase, SANS SUBORDONNÉE (jamais deux \
+phrases séparées par un point, jamais plus de deux idées, jamais une conjonction de \
+subordination du type parce que/que/qui/quand), sans question en retour et sans \
+annonce d'une réponse qui ne vient jamais : interdit par ex. "Peux-tu me dire laquelle \
+tu ne comprends pas ?", "Que veux-tu faire pour te sentir mieux ?", "Veux-tu un siège \
+plus calme ?", "Je dois te donner plus de détails".
 Si la question porte sur une durée, réponds en termes qualitatifs (ex. "plutôt \
 court", "ça dépend du besoin") : n'invente jamais de chiffre précis (interdit par ex. \
 "15 à 30 minutes", "entre quinze minutes et une heure", "plus d'un an").
@@ -248,20 +253,26 @@ Consigne de forme pour cette réponse précise (varie d'un exemple à l'autre, m
 reste toujours en une seule phrase, à respecter ici) : {format_directive}"""
 
 CAS_RENVOI_OUTPUT_BLOC = """Cas de cet exemple : RENVOI — l'assistant n'est pas en position de savoir.
-Structure attendue, rien d'autre : UNE SEULE phrase (jamais deux phrases séparées par \
-un point), composée de deux parties reliées par une virgule ou une conjonction : \
-d'abord la partie qui nomme l'objet précis de la question (pas la question en \
-général), ensuite la partie qui indique vers qui se tourner.
-La première partie doit nommer l'objet précis de la question, ET CONSERVER LE MOT \
-INTERROGATIF DE L'INSTRUCTION sans jamais en changer le sens : une instruction en \
-"si..." se reprend en "si...", une instruction en "pourquoi..." se reprend en \
-"pourquoi...", jamais l'inverse ni un autre mot interrogatif. Interdit (trop \
-générique, mot interrogatif changé, ou deux phrases séparées par un point) : "Je ne \
-peux pas répondre à cela.", "Je ne sais pas quand ta sœur a fini. Demande à ta sœur." \
-(si la question était "si elle a fini"). Attendu, en une seule phrase : "Je ne sais \
-pas pourquoi ta langue est verte, c'est ton docteur qui peut te le dire.", "Je ne \
-sais pas si le train va avoir beaucoup de retard, il n'y a que l'agent qui puisse te \
-répondre."
+Forme imposée, dans tous les cas : UNE SEULE phrase, SANS SUBORDONNÉE (jamais deux \
+phrases séparées par un point), au maximum DEUX IDÉES reliées par UN SEUL CONNECTEUR \
+(virgule ou conjonction de coordination), jamais par une conjonction de subordination \
+(parce que, que, qui, quand...).
+
+{structure_directive}
+
+Varie l'amorce de la phrase d'un exemple à l'autre : NE COMMENCE PAS SYSTÉMATIQUEMENT \
+PAR "Je ne sais pas" (réserve cette formule à une partie des exemples seulement) ; \
+ouvre aussi parfois directement sur l'objet de la question, sur le destinataire ou sur \
+l'action proposée, selon la structure ci-dessus.
+
+Si la phrase reprend l'objet de la question, elle CONSERVE LE MOT INTERROGATIF DE \
+L'INSTRUCTION sans jamais en changer le sens : une instruction en "si..." se reprend \
+en "si...", une instruction en "pourquoi..." se reprend en "pourquoi...", jamais \
+l'inverse ni un autre mot interrogatif. Interdit (trop générique, mot interrogatif \
+changé, ou deux phrases séparées par un point) : "Je ne peux pas répondre à cela.", \
+"Je ne sais pas quand ta sœur a fini. Demande à ta sœur." (si la question était "si \
+elle a fini").
+
 Destinataires possibles pour ce thème et ce persona : {destinataires_possibles}. \
 Choisis un seul destinataire DANS CETTE LISTE, celui qui correspond le mieux au \
 contenu de l'instruction (ex. une instruction qui parle d'un camarade se renvoie vers \
@@ -273,26 +284,60 @@ propose que "l'agent"). N'invente JAMAIS un destinataire absent de la liste. \
 N'énumère jamais plusieurs destinataires et ne reprends jamais de parenthèses ni de \
 point médian.
 Aucune formulation candidate, aucune explication partielle, aucun avis sur \
-normal/grave/bénin, aucune cause proposée, même partielle.
-Modèle de style ci-dessous pour le ton et la seconde partie de la phrase uniquement \
-(le destinataire y est encore générique : remplace-le par le destinataire choisi, et \
-fais-la précéder, dans la MÊME phrase reliée par une virgule ou une conjonction, de \
-la partie qui nomme l'objet précis de CETTE question en conservant son mot \
-interrogatif, jamais mot pour mot) : \
+normal/grave/bénin, aucune cause proposée, même partielle."""
+
+
+# Les quatre structures de sortie du cas RENVOI, alternées d'un exemple à l'autre (cf.
+# generate._planifier_structures_renvoi, qui garantit qu'aucune ne dépasse ~35% des
+# renvois d'une génération) pour éviter qu'un patron unique ("objet de la question,
+# destinataire peut répondre") ne domine tout le sous-ensemble RENVOI. Chaque valeur
+# est injectée dans CAS_RENVOI_OUTPUT_BLOC via {structure_directive} ; seule celle de
+# "orientation_personne" contient encore le placeholder {variante_renvoi} (cf.
+# choisir_variante_renvoi), les trois autres sont autosuffisantes.
+STRUCTURE_RENVOI_ORIENTATION_PERSONNE = """Structure à suivre : ORIENTATION VERS UNE PERSONNE — une idée nomme l'objet \
+précis de la question, l'autre affirme que le destinataire choisi peut répondre. \
+Modèle de style pour cette seconde idée uniquement (le destinataire y est encore \
+générique : remplace-le par le destinataire choisi, jamais mot pour mot) : \
 "{variante_renvoi}\""""
 
+STRUCTURE_RENVOI_EXPLICATION_LIMITE = """Structure à suivre : EXPLICATION DE CE QUE L'ASSISTANT NE PEUT PAS SAVOIR — une \
+idée explique, sans détail inventé, que l'assistant lui-même n'a pas accès à cette \
+information (ex. "je ne suis pas à ta place pour le savoir", "ça, je ne peux pas le \
+savoir moi-même"), l'autre indique vers qui se tourner. N'explique JAMAIS la cause du \
+fait lui-même (toujours interdit), seulement la limite de l'assistant."""
 
-# Variantes de la seconde partie de phrase ("..., c'est {interlocuteur} qui peut te
-# répondre"), tirées au sort pour éviter qu'un patron unique ne se répète sur tout le
-# sous-ensemble RENVOI. {interlocuteur} est rempli avec Theme.interlocuteurs_pour().
+STRUCTURE_RENVOI_ACTION_CONCRETE = """Structure à suivre : PROPOSITION D'UNE ACTION CONCRÈTE — une idée propose une \
+action concrète que le persona peut faire lui-même pour obtenir la réponse (ex. "tu \
+peux en parler à ton docteur", "tu peux aller voir ton enseignant·e"), jamais à \
+l'impératif adressé au persona (interdit par ex. "parle à ton docteur", "va voir ton \
+enseignant·e") ; l'autre idée, si présente, reste très courte."""
+
+STRUCTURE_RENVOI_AIDE_FORMULATION = """Structure à suivre : AIDE À FORMULER LA QUESTION — reformule directement, en une \
+seule idée, la question à poser à la bonne personne, en conservant le mot interrogatif \
+d'origine et le destinataire choisi (ex. "tu peux demander à ton docteur pourquoi ta \
+langue est verte")."""
+
+STRUCTURES_RENVOI: dict[str, str] = {
+    "orientation_personne": STRUCTURE_RENVOI_ORIENTATION_PERSONNE,
+    "explication_limite": STRUCTURE_RENVOI_EXPLICATION_LIMITE,
+    "action_concrete": STRUCTURE_RENVOI_ACTION_CONCRETE,
+    "aide_formulation": STRUCTURE_RENVOI_AIDE_FORMULATION,
+}
+
+
+# Variantes de la seconde partie de phrase ("..., {interlocuteur} peut te répondre"),
+# tirées au sort pour éviter qu'un patron unique ne se répète sur tout le sous-ensemble
+# RENVOI. {interlocuteur} est rempli avec Theme.interlocuteurs_pour(). Volontairement
+# sans relative en "qui" : la phrase entière doit rester sans subordonnée, deux idées
+# maximum reliées par un seul connecteur (cf. CAS_RENVOI_OUTPUT_BLOC).
 # Formulées en clause (pas en phrase autonome à majuscule) : elles se rattachent à la
 # première partie de la phrase par une virgule ou une conjonction, jamais par un point.
 RENVOI_PHRASES_VARIANTES = [
-    "c'est {interlocuteur} qui peut te répondre.",
+    "{interlocuteur_maj} peut te répondre.",
     "il vaut mieux demander à {interlocuteur}.",
     "c'est une question à poser à {interlocuteur}.",
     "{interlocuteur_maj} pourra te répondre.",
-    "il n'y a que {interlocuteur} qui puisse te répondre.",
+    "seul {interlocuteur} peut te répondre.",
     "{interlocuteur_maj} saura te le dire.",
     "c'est à {interlocuteur} de te répondre sur ce point.",
 ]
@@ -400,6 +445,7 @@ def build_output_prompt(
     exemple_instruction: str,
     variante_renvoi: str | None = None,
     format_directive: str | None = None,
+    structure_renvoi: str | None = None,
 ) -> str:
     contraintes_bloc = ""
     if theme.contraintes_specifiques:
@@ -407,9 +453,17 @@ def build_output_prompt(
         contraintes_bloc = f"Contraintes spécifiques au thème :\n{lignes}\n"
 
     if cas == "renvoi":
+        structure_id = structure_renvoi or "orientation_personne"
+        structure_template = STRUCTURES_RENVOI[structure_id]
+        if structure_id == "orientation_personne":
+            structure_directive = structure_template.format(
+                variante_renvoi=variante_renvoi or choisir_variante_renvoi(theme, persona)
+            )
+        else:
+            structure_directive = structure_template
         cas_bloc = CAS_RENVOI_OUTPUT_BLOC.format(
             destinataires_possibles=_destinataires_possibles(theme, persona),
-            variante_renvoi=variante_renvoi or choisir_variante_renvoi(theme, persona),
+            structure_directive=structure_directive,
         )
     else:
         cas_bloc = CAS_REPONSE_OUTPUT_BLOC.format(
