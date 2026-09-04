@@ -53,6 +53,7 @@ from panta_generate_data_instruct.filters import (
     incorrections_frequentes,
     interrogatif_incoherent_en_renvoi,
     mot_anglais_isole,
+    output_trop_long,
     plusieurs_phrases,
     reparer_elisions,
     reponse_evasive_ou_question,
@@ -563,6 +564,7 @@ def _generate_outputs(
             candidate.cas,
             candidate.instruction,
             candidate.exemple_instruction,
+            taxonomy.parametres_generation.output_max_mots,
             variante_renvoi=variante_renvoi,
             format_directive=format_directive,
             structure_renvoi=structure_renvoi,
@@ -651,6 +653,8 @@ def _generate_outputs(
             rejet = "mot anglais isolé"
         elif plusieurs_phrases(output_text):
             rejet = "plusieurs phrases au lieu d'une seule"
+        elif output_trop_long(output_text, taxonomy.parametres_generation.output_max_mots):
+            rejet = f"output trop long (> {taxonomy.parametres_generation.output_max_mots} mots)"
         else:
             fautes = incorrections_frequentes(output_text)
             if fautes:
@@ -700,7 +704,6 @@ def _generate_outputs(
                     sous_theme=candidate.plan.sous_theme.id,
                     persona_id=candidate.plan.persona.id,
                     type_attendu=candidate.cas,
-                    intention=candidate.intention,
                 )
             )
 

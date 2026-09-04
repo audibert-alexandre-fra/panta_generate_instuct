@@ -173,6 +173,11 @@ par un point. DEUX IDÉES MAXIMUM, reliées par UN SEUL CONNECTEUR (virgule ou \
 conjonction de coordination), jamais par une conjonction de subordination (parce que, \
 que, qui, quand...), y compris dans le cas RENVOI où les deux idées (objet de la \
 question, destinataire) sont reliées dans la même phrase par ce connecteur unique.
+- Longueur maximale : {output_max_mots} mots. Une phrase courte et simple, jamais une \
+énumération de plusieurs causes, exemples ou raisons reliés par des virgules ou "ou" \
+(interdit par ex. "...à cause d'un effort, d'un refroidissement ou d'un manque de \
+magnésium") : choisis une seule cause, un seul exemple ou une seule raison, la plus \
+utile, plutôt que d'essayer d'être exhaustif.
 - Ne recopie jamais l'instruction en préambule.
 - N'utilise jamais l'impératif pour renvoyer la tâche au persona (interdit par ex. \
 "Demande-lui toi-même", "Il faut demander à ton camarade") : l'assistant ne délègue \
@@ -443,6 +448,7 @@ def build_output_prompt(
     cas: CasType,
     instruction: str,
     exemple_instruction: str,
+    output_max_mots: int,
     variante_renvoi: str | None = None,
     format_directive: str | None = None,
     structure_renvoi: str | None = None,
@@ -481,6 +487,7 @@ def build_output_prompt(
         instruction=instruction,
         cas_output_bloc=cas_bloc,
         persona_registre_adresse=persona.registre_adresse,
+        output_max_mots=output_max_mots,
     )
 
 

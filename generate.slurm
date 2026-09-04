@@ -44,7 +44,7 @@ export CPATH="${PY_INCLUDE}:${CPATH}"
 DEBUT=$(date +%s)
 echo "=== Début génération : $(date --iso-8601=seconds) ==="
 
-srun uv run python -u -m panta_generate_data_instruct.generate --model Qwen/Qwen3-32B --n-per-cell 50 --max-model-len 8192 --output data/raw/generated.jsonl --raw-log data/raw/generated_raw_log.json --log-level INFO
+srun uv run python -u -m panta_generate_data_instruct.generate --model Qwen/Qwen3-32B --n-per-cell 10 --max-model-len 8192 --output data/raw/generated.jsonl --raw-log data/raw/generated_raw_log.json --log-level INFO
 
 FIN=$(date +%s)
 DUREE=$((FIN - DEBUT))

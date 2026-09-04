@@ -118,6 +118,15 @@ class ParametresGeneration(BaseModel):
     # sujet par rapport à l'angle tiré, ex. une explication de ce que montre une IRM
     # alors que l'intention portait sur le déroulé de l'examen).
     pertinence_intention_min: float = 0.15
+    # Nombre de mots au-delà duquel un output généré est rejeté. La consigne "une seule
+    # phrase" (cf. filters.plusieurs_phrases) ne suffit pas à garantir un output FALC
+    # court : une phrase unique peut rester longue en enchaînant plusieurs exemples ou
+    # causes reliés par des virgules/"ou" (ex. "...souvent à cause d'un effort, d'un
+    # refroidissement ou d'un manque de magnésium"). Contrairement à
+    # persona.longueur_max_mots (propre à chaque persona, pour l'instruction), l'output
+    # reste toujours en français impeccable donc une seule limite, indépendante du
+    # persona, suffit.
+    output_max_mots: int = 15
 
 
 class Taxonomy(BaseModel):
@@ -205,6 +214,3 @@ class InstructExample(BaseModel):
     # personne, ce lieu ou ce moment précis) ; il le dit et indique vers qui se
     # tourner. Cf. les blocs CAS_* dans prompts.py.
     type_attendu: Literal["reponse", "renvoi"]
-    # Angle concret tiré au sort dans SousTheme.intentions_reponse/intentions_renvoi
-    # pour cet exemple.
-    intention: str

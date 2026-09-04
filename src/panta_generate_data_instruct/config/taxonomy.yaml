@@ -1,7 +1,8 @@
 # Taxonomie du pilote : thèmes, sous-thèmes, personas et quotas.
 # Sert de graine à la génération (self-instruct) dans generate.py.
 #
-# Volume cible : 4 thèmes x 4 sous-thèmes x 3 personas x 5 exemples = 240 exemples,
+# Volume cible : 17 sous-thèmes (4 thèmes x 4 sous-thèmes, sauf médical qui en compte 5
+# depuis l'ajout de parties_du_corps) x 3 personas x 5 exemples = 255 exemples,
 # redistribué par sous-thème selon la matrice de compatibilité `poids_personas` (les
 # combinaisons persona x sous-thème non plausibles ont un poids de 0 et leur part est
 # reportée sur les personas compatibles du même sous-thème).
@@ -69,6 +70,12 @@ parametres_generation:
   # Seuil de similarité cosinus en-deçà duquel un output généré est rejeté pour être
   # trop éloigné du sous-thème/de l'intention demandés.
   pertinence_intention_min: 0.15
+  # Nombre de mots au-delà duquel un output généré est rejeté. La règle "une seule
+  # phrase" seule ne suffit pas : une phrase peut rester longue en enchaînant plusieurs
+  # causes/exemples reliés par des virgules ou "ou". Valeur unique pour tous les
+  # personas (l'output est toujours en français impeccable, contrairement à
+  # l'instruction dont la longueur varie par persona).
+  output_max_mots: 15
 
 style_guide:
   registre: FALC (Facile à Lire et à Comprendre)
@@ -353,7 +360,13 @@ themes:
         examen de la vue ?\"), mais jamais donner un avis sur le cas personnel du
         persona, un diagnostic, ni confirmer ou infirmer qu'un symptôme précis du
         persona est normal."
-    quota_exemples: 60
+      - "Chaque fois que l'instruction ou l'output nomme une partie du corps (sous-thème
+        parties_du_corps en particulier, mais aussi tout autre sous-thème qui y ferait
+        référence), utiliser uniquement le vocabulaire courant compatible avec les
+        pictogrammes ARASAAC (ex. \"bras\", \"jambe\", \"genou\", \"ventre\",
+        \"cheville\", \"épaule\"), jamais un terme anatomique technique ou peu courant
+        (ex. \"abdomen\", \"avant-bras\", \"articulation\", \"phalange\", \"thorax\")."
+    quota_exemples: 75
     # ratio_reponse: 0.95 sur les quatre sous-thèmes de ce thème, comme sur les trois
     # autres thèmes (cf. commentaire en tête de fichier) : pas de traitement différencié
     # du médical sur ce split RÉPONSE/RENVOI.
@@ -478,6 +491,42 @@ themes:
           - savoir si un examen a été ajouté à mon prochain rendez-vous
           - savoir si je peux poser une question précise lors du prochain rendez-vous
           - savoir si mon rendez-vous de la semaine prochaine est bien maintenu
+      - id: parties_du_corps
+        description: Désigner une partie du corps à partir de sa position ou de ce
+          qu'elle relie.
+        ratio_reponse: 0.95
+        # Angles construits pour que la réponse soit elle-même le nom d'une partie du
+        # corps (ex. "qu'est-ce qu'il y a entre la main et l'avant-bras ?" → "le
+        # poignet") ou une localisation qui s'appuie sur d'autres parties du corps déjà
+        # connues (ex. "où se trouve le coude ?" → "entre le bras et l'avant-bras") :
+        # l'objectif est d'entraîner à désigner/localiser, pas seulement à définir.
+        intentions_reponse:
+          - ce qui se trouve entre la main et l'avant-bras
+          - où se trouve le coude
+          - ce qui se trouve entre le pied et la jambe
+          - où se trouve l'épaule
+          - ce qui relie la cuisse à la jambe
+          - où se trouve le nombril
+          - ce qui se trouve entre le ventre et la jambe
+          - où se trouve la nuque
+          - ce qui se trouve juste au-dessus de l'œil
+          - où se trouve le menton
+          - ce qui se trouve à l'arrière de la jambe, sous le genou
+          - où se trouve la paume de la main
+          - ce qui se trouve à l'arrière du pied, sous la cheville
+          - où se trouve la cuisse
+        intentions_renvoi:
+          - une marque inhabituelle remarquée sur une partie du corps aujourd'hui
+          - une sensation de picotement ressentie dans une main ou un pied maintenant
+          - une partie du corps qui semble gonflée depuis ce matin
+          - une raideur ressentie dans une articulation en ce moment
+          - une zone de peau qui démange depuis peu
+          - savoir si une partie du corps a l'air normale aujourd'hui
+          - une sensation inhabituelle dans le dos remarquée récemment
+          - savoir si un bleu récent sur le bras est grave
+          - une articulation qui craque plus que d'habitude en ce moment
+          - savoir si une petite bosse sur la tête est inquiétante
+          - une différence de température ressentie entre deux parties du corps maintenant
 
   famille:
     label: Famille

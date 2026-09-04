@@ -353,3 +353,12 @@ def plusieurs_phrases(texte: str) -> bool:
     (objet de la question, destinataire) doivent être reliées dans une seule phrase
     (virgule ou conjonction) plutôt que présentées comme deux phrases distinctes."""
     return len(_FIN_PHRASE_RE.findall(texte.strip())) > 1
+
+
+def output_trop_long(texte: str, max_mots: int) -> bool:
+    """Détecte un output dépassant `max_mots` mots. La contrainte "une seule phrase"
+    (plusieurs_phrases) ne suffit pas à garantir un output court et simple : une phrase
+    unique peut rester longue en enchaînant plusieurs causes/exemples reliés par des
+    virgules ou "ou" (ex. "...à cause d'un effort, d'un refroidissement ou d'un manque
+    de magnésium")."""
+    return len(texte.split()) > max_mots
