@@ -1,11 +1,14 @@
 # Taxonomie du pilote : thèmes, sous-thèmes, personas et quotas.
 # Sert de graine à la génération (self-instruct) dans generate.py.
 #
-# Volume cible : 17 sous-thèmes (4 thèmes x 4 sous-thèmes, sauf médical qui en compte 5
-# depuis l'ajout de parties_du_corps) x 3 personas x 5 exemples = 255 exemples,
-# redistribué par sous-thème selon la matrice de compatibilité `poids_personas` (les
-# combinaisons persona x sous-thème non plausibles ont un poids de 0 et leur part est
-# reportée sur les personas compatibles du même sous-thème).
+# Volume : 29 sous-thèmes (médical 8, famille 7, vie_quotidienne 7, école 7) x 3
+# personas x n_per_cell exemples, redistribué par sous-thème selon la matrice de
+# compatibilité `poids_personas` (les combinaisons persona x sous-thème non plausibles
+# ont un poids de 0 et leur part est reportée sur les personas compatibles du même
+# sous-thème). Le pilote initial visait 255 exemples (17 sous-thèmes x 3 personas x 5) ;
+# la taxonomie a depuis été étoffée (29 sous-thèmes, plus d'intentions/concepts/types de
+# question) pour absorber le sur-échantillonnage nécessaire à un passage à l'échelle
+# (cible ~20 000 exemples, cf. discussion sur generate.slurm).
 #
 # Personas : organisés par tranche d'âge et niveau de langage/vocabulaire (enfant,
 # adolescent, adulte), jamais par profil médical ou type de handicap précis — seul
@@ -188,6 +191,9 @@ types_question:
   - "une question de comparaison (ex. \"quelle différence entre... et...\")"
   - "une question de fonction (ex. \"à quoi ça sert...\")"
   - "une question de norme (ex. \"est-ce que c'est normal de...\")"
+  - "une question d'identification (ex. \"comment on reconnaît...\")"
+  - "une question de moyen (ex. \"avec quoi on peut...\")"
+  - "une question d'origine (ex. \"d'où vient...\")"
 
 # 3 personas, organisés par tranche d'âge et niveau de langage/vocabulaire (pas par
 # profil médical ou type de handicap) : seul le niveau de communication attendu
@@ -353,6 +359,14 @@ themes:
       - le sommeil
       - l'hygiène des mains
       - un contrôle médical
+      - un carnet de santé
+      - une trousse de secours
+      - une compresse
+      - un inhalateur
+      - une prise de tension
+      - un appareil auditif
+      - des lunettes de vue
+      - une salle de soins
     contraintes_specifiques:
       - "Cas RENVOI (la réponse dépend de l'état de santé personnel du persona) :
         l'assistant n'est jamais présent au rendez-vous et ne connaît jamais l'état de
@@ -371,8 +385,8 @@ themes:
         pictogrammes ARASAAC (ex. \"bras\", \"jambe\", \"genou\", \"ventre\",
         \"cheville\", \"épaule\"), jamais un terme anatomique technique ou peu courant
         (ex. \"abdomen\", \"avant-bras\", \"articulation\", \"phalange\", \"thorax\")."
-    quota_exemples: 75
-    # ratio_reponse: 0.95 sur les quatre sous-thèmes de ce thème, comme sur les trois
+    quota_exemples: 120
+    # ratio_reponse: 0.95 sur tous les sous-thèmes de ce thème, comme sur les trois
     # autres thèmes (cf. commentaire en tête de fichier) : pas de traitement différencié
     # du médical sur ce split RÉPONSE/RENVOI.
     sous_themes:
@@ -532,6 +546,90 @@ themes:
           - une articulation qui craque plus que d'habitude en ce moment
           - savoir si une petite bosse sur la tête est inquiétante
           - une différence de température ressentie entre deux parties du corps maintenant
+      - id: hygiene_quotidienne
+        description: Parler d'un geste d'hygiène ou de soin du quotidien.
+        ratio_reponse: 0.95
+        intentions_reponse:
+          - pourquoi il est important de se laver les mains avant de manger
+          - ce qu'est un désinfectant
+          - pourquoi on se brosse les dents après les repas
+          - ce qu'est une crème pour la peau
+          - pourquoi il faut nettoyer une petite plaie
+          - ce qu'est un pansement
+          - pourquoi il est utile de se laver les mains après avoir toussé
+          - ce qu'est une brosse à dents
+          - pourquoi certains savons sont adaptés aux peaux sensibles
+          - ce qu'est une routine de soins quotidienne
+          - pourquoi il faut changer un pansement régulièrement
+          - ce qu'est du savon antibactérien
+          - pourquoi se laver les mains évite d'attraper des microbes
+        intentions_renvoi:
+          - savoir si un pansement doit être changé aujourd'hui
+          - savoir si une petite coupure doit encore être surveillée
+          - savoir si une crème doit être appliquée maintenant
+          - savoir si une plaie récente cicatrise normalement
+          - savoir si un soin du jour a déjà été fait
+          - savoir si un produit utilisé aujourd'hui convient à la peau
+          - savoir si un geste d'hygiène doit être refait maintenant
+          - savoir si une irritation remarquée ce matin est habituelle
+          - savoir si un pansement posé récemment tient encore bien
+          - savoir si un soin prévu aujourd'hui a été oublié
+      - id: alimentation_sante
+        description: Poser une question sur l'alimentation en lien avec la santé.
+        ratio_reponse: 0.95
+        intentions_reponse:
+          - ce qu'est une allergie alimentaire
+          - pourquoi certains aliments sont déconseillés avec certains traitements
+          - ce qu'est un régime alimentaire
+          - pourquoi il est important de boire assez d'eau
+          - ce qu'est une intolérance alimentaire
+          - pourquoi certains repas doivent être pris à heure fixe avant un examen
+          - ce qu'est un nutriment
+          - pourquoi manger équilibré aide à rester en forme
+          - ce qu'est une carence alimentaire
+          - pourquoi certains aliments sont plus faciles à digérer que d'autres
+          - ce qu'est un complément alimentaire
+          - pourquoi il est déconseillé de sauter des repas
+          - ce qu'est une étiquette d'ingrédients
+        intentions_renvoi:
+          - savoir si un aliment du repas d'aujourd'hui est déconseillé
+          - savoir si le régime actuel doit encore être suivi cette semaine
+          - savoir si une réaction après un repas récent est liée à un aliment
+          - savoir si un repas prévu aujourd'hui convient au traitement en cours
+          - savoir si une envie ressentie maintenant est liée à une carence
+          - savoir si un aliment habituel doit être évité pour le moment
+          - savoir si le repas de ce midi respecte les consignes données
+          - savoir si une gêne ressentie après manger est habituelle
+          - savoir si un complément doit être pris avec ce repas
+          - savoir si une nouvelle consigne alimentaire s'applique déjà aujourd'hui
+      - id: vaccins_prevention
+        description: Poser une question sur la vaccination ou la prévention.
+        ratio_reponse: 0.95
+        intentions_reponse:
+          - ce qu'est un vaccin
+          - pourquoi on se fait vacciner
+          - ce qu'est un rappel de vaccin
+          - pourquoi certains vaccins se font en plusieurs fois
+          - ce qu'est un carnet de vaccination
+          - pourquoi la vaccination protège aussi les autres
+          - ce qu'est une épidémie
+          - pourquoi il est conseillé de se laver les mains pour éviter les microbes
+          - ce qu'est un geste de prévention
+          - pourquoi certains vaccins sont recommandés avant un voyage
+          - ce qu'est l'immunité
+          - pourquoi une petite fièvre peut suivre un vaccin
+          - ce qu'est une campagne de vaccination
+        intentions_renvoi:
+          - savoir si un vaccin est à jour aujourd'hui
+          - savoir si un rappel de vaccin est prévu bientôt
+          - savoir si une réaction après une piqûre récente est habituelle
+          - savoir si un vaccin reçu récemment protège déjà
+          - savoir si le carnet de vaccination a bien été mis à jour cette fois
+          - savoir si un prochain vaccin est déjà programmé
+          - savoir si une fièvre ressentie depuis la vaccination est normale
+          - savoir si un vaccin est nécessaire avant un évènement à venir
+          - savoir si le vaccin reçu récemment couvre encore cette année
+          - savoir si une piqûre reçue aujourd'hui laisse une marque normale
 
   famille:
     label: Famille
@@ -589,8 +687,16 @@ themes:
       - une valise
       - un arbre généalogique
       - un bébé
+      - une chanson
+      - un jeu vidéo
+      - une randonnée
+      - une décoration de fête
+      - un feu de cheminée
+      - une couverture
+      - un carnet de dessin
+      - une trottinette
     contraintes_specifiques: []
-    quota_exemples: 60
+    quota_exemples: 105
     sous_themes:
       - id: exprimer_emotion
         description: Exprimer une émotion (joie, colère, fatigue, inquiétude) à un proche.
@@ -702,6 +808,90 @@ themes:
           - savoir si un proche comprend le besoin de pause maintenant
           - savoir si la pause d'aujourd'hui peut être un peu plus longue
           - savoir si un proche préfère reprendre l'activité tout de suite
+      - id: partager_repas
+        description: Parler d'un repas partagé en famille, sans détail précis inventé
+          (pas de plat ni d'heure).
+        ratio_reponse: 0.95
+        intentions_reponse:
+          - pourquoi on aime bien manger ensemble en famille
+          - ce qu'est un repas équilibré
+          - pourquoi certains plats sont préparés seulement pour les occasions
+          - ce qu'est une recette de famille
+          - pourquoi il est agréable de cuisiner à plusieurs
+          - ce qu'est une table dressée
+          - pourquoi certains repas durent plus longtemps que d'autres
+          - ce qu'est un plat préféré
+          - pourquoi partager un repas aide à se retrouver en famille
+          - ce qu'est une odeur de cuisine
+          - pourquoi certains repas se prennent à des horaires fixes
+          - ce qu'est un dessert
+        intentions_renvoi:
+          - savoir si le repas est bientôt prêt maintenant
+          - savoir si un proche a déjà mangé aujourd'hui
+          - savoir si une préférence exprimée pour ce repas peut être prise en compte
+          - savoir si un plat prévu aujourd'hui a changé
+          - savoir si tout le monde est là pour le repas de maintenant
+          - savoir si un proche a préparé le repas d'aujourd'hui
+          - savoir si le repas peut encore attendre un peu
+          - savoir si une portion supplémentaire est disponible maintenant
+          - savoir si un proche a aimé le repas d'aujourd'hui
+          - savoir si un repas différent est prévu ce soir
+      - id: activite_partagee
+        description: Proposer ou rejoindre une activité partagée en famille, sans
+          détail précis inventé (pas d'activité ni d'horaire).
+        ratio_reponse: 0.95
+        intentions_reponse:
+          - pourquoi il est agréable de faire une activité à plusieurs
+          - ce qu'est un jeu de société
+          - pourquoi certaines activités se font mieux en famille
+          - ce qu'est un moment partagé
+          - pourquoi il est motivant de choisir une activité ensemble
+          - ce qu'est un passe-temps
+          - pourquoi certaines familles ont des activités habituelles
+          - ce qu'est une sortie en famille
+          - pourquoi il est important de proposer plusieurs activités possibles
+          - ce qu'est un jeu d'équipe
+          - pourquoi une activité peut plaire différemment selon les personnes
+          - ce qu'est un moment de détente en famille
+        intentions_renvoi:
+          - savoir si un proche est disponible pour une activité maintenant
+          - savoir si l'activité proposée aujourd'hui plaît à tout le monde
+          - savoir si une activité prévue peut encore avoir lieu aujourd'hui
+          - savoir si un proche préfère une autre activité maintenant
+          - savoir combien de temps l'activité en cours va encore durer
+          - savoir si tout le monde participe à l'activité de maintenant
+          - savoir si l'activité du jour peut être reportée à plus tard
+          - savoir si un proche a déjà commencé l'activité prévue
+          - savoir si une activité différente est possible aujourd'hui
+          - savoir si un proche est content de l'activité choisie maintenant
+      - id: regles_maison
+        description: Poser une question sur une règle ou une habitude de la maison,
+          sans détail précis inventé.
+        ratio_reponse: 0.95
+        intentions_reponse:
+          - pourquoi une famille a des règles à la maison
+          - ce qu'est une règle de vie commune
+          - pourquoi certaines habitudes reviennent chaque jour
+          - ce qu'est une routine du soir
+          - pourquoi il est utile d'avoir des horaires réguliers
+          - ce qu'est un rituel familial
+          - pourquoi les règles peuvent changer avec le temps
+          - ce qu'est le respect des affaires de chacun
+          - pourquoi il est important de prévenir avant de sortir
+          - ce qu'est une habitude de rangement
+          - pourquoi certaines règles concernent la sécurité à la maison
+          - ce qu'est un accord familial
+        intentions_renvoi:
+          - savoir si une règle habituelle s'applique encore aujourd'hui
+          - savoir si une sortie prévue aujourd'hui est encore autorisée
+          - savoir si un horaire habituel a changé cette semaine
+          - savoir si une habitude du soir peut être différente aujourd'hui
+          - savoir si un proche a validé un changement de règle récent
+          - savoir si une exception peut être faite aujourd'hui
+          - savoir si une règle de rangement doit être suivie maintenant
+          - savoir si un accord donné récemment tient toujours
+          - savoir si un proche a rappelé une règle aujourd'hui
+          - savoir si une habitude de la maison peut être discutée maintenant
 
   vie_quotidienne:
     label: Vie quotidienne
@@ -753,8 +943,16 @@ themes:
       - un arc-en-ciel
       - un embouteillage
       - un jour de marché
+      - une carte de transport
+      - un abonnement
+      - une caisse automatique
+      - un sac de courses
+      - une station de vélos
+      - un plan du quartier
+      - une aire de pique-nique
+      - un marché couvert
     contraintes_specifiques: []
-    quota_exemples: 60
+    quota_exemples: 105
     sous_themes:
       - id: demande_lieu_public
         description: Faire une demande dans un lieu public (restaurant, magasin, transport).
@@ -866,6 +1064,90 @@ themes:
           - savoir si un arrêt est encore loin d'ici
           - savoir si le chemin habituel est praticable aujourd'hui
           - savoir si on vient de rater un embranchement important
+      - id: achat_paiement
+        description: Comprendre ou effectuer un achat, sans détail précis inventé
+          (pas de prix, de lieu ni d'heure).
+        ratio_reponse: 0.95
+        intentions_reponse:
+          - ce qu'est un prix affiché
+          - comment fonctionne en général le paiement sans contact
+          - pourquoi certains achats demandent un code secret
+          - ce qu'est un reçu d'achat
+          - pourquoi il est utile de vérifier son ticket de caisse
+          - ce qu'est un moyen de paiement
+          - pourquoi certains commerces n'acceptent pas les espèces
+          - ce qu'est une carte de paiement
+          - pourquoi les prix peuvent varier d'un magasin à l'autre
+          - ce qu'est un rendu de monnaie
+          - pourquoi certains achats se paient en plusieurs fois
+          - ce qu'est un budget
+        intentions_renvoi:
+          - savoir combien coûte quelque chose ici
+          - savoir si un moyen de paiement est accepté ici maintenant
+          - savoir si le prix affiché ici est encore valable aujourd'hui
+          - savoir s'il reste assez d'argent pour cet achat maintenant
+          - savoir si un article ici est en promotion aujourd'hui
+          - savoir si le paiement de maintenant a bien été accepté
+          - savoir si une carte utilisée ici fonctionne bien
+          - savoir si un remboursement est possible ici aujourd'hui
+          - savoir si le montant affiché ici est correct
+          - savoir si quelqu'un peut aider à payer maintenant
+      - id: meteo_exterieur
+        description: Poser une question sur la météo ou une sortie extérieure, sans
+          détail précis inventé (pas de lieu ni d'heure).
+        ratio_reponse: 0.95
+        intentions_reponse:
+          - ce qu'est la météo
+          - pourquoi le temps change selon les saisons
+          - ce qu'est un bulletin météo
+          - pourquoi il pleut parfois plusieurs jours de suite
+          - ce qu'est un parapluie
+          - pourquoi il est utile de vérifier la météo avant de sortir
+          - ce qu'est une vague de chaleur
+          - pourquoi il fait plus froid le matin que l'après-midi en général
+          - ce qu'est un vêtement imperméable
+          - pourquoi le vent peut rendre une sortie plus difficile
+          - ce qu'est une prévision météo
+          - pourquoi certaines saisons sont plus pluvieuses que d'autres
+        intentions_renvoi:
+          - savoir s'il va pleuvoir aujourd'hui
+          - savoir s'il fait assez chaud pour sortir maintenant
+          - savoir si une sortie prévue aujourd'hui est encore possible avec ce temps
+          - savoir si un vêtement plus chaud est nécessaire maintenant
+          - savoir si le temps va changer plus tard aujourd'hui
+          - savoir si le vent d'aujourd'hui va gêner une sortie prévue
+          - savoir si la météo d'aujourd'hui a changé les plans
+          - savoir si un parapluie est nécessaire maintenant
+          - savoir si le temps ici permet de rester dehors encore un peu
+          - savoir si la sortie du jour doit être reportée à cause du temps
+      - id: loisir_temps_libre
+        description: Parler d'une activité de loisir, sans détail précis inventé
+          (pas de lieu ni d'horaire).
+        ratio_reponse: 0.95
+        intentions_reponse:
+          - ce qu'est un loisir
+          - pourquoi il est agréable d'avoir du temps libre
+          - ce qu'est une bibliothèque
+          - pourquoi certains loisirs se pratiquent en groupe
+          - ce qu'est un cinéma
+          - pourquoi il est bon de changer d'activité de temps en temps
+          - ce qu'est un parc public
+          - pourquoi certaines activités demandent une réservation
+          - ce qu'est un abonnement de loisirs
+          - pourquoi il est utile de varier ses loisirs
+          - ce qu'est une séance de cinéma
+          - pourquoi certains loisirs coûtent de l'argent
+        intentions_renvoi:
+          - savoir si une activité de loisir est disponible ici maintenant
+          - savoir si une place est encore libre pour aujourd'hui
+          - savoir combien de temps il reste avant la fin de l'activité
+          - savoir si un accompagnement est possible pour ce loisir maintenant
+          - savoir si l'endroit est accessible facilement aujourd'hui
+          - savoir si une réservation est encore possible aujourd'hui
+          - savoir si l'activité prévue aujourd'hui a bien lieu
+          - savoir si un tarif réduit s'applique ici aujourd'hui
+          - savoir si l'activité peut être prolongée maintenant
+          - savoir si quelqu'un peut accompagner pour ce loisir aujourd'hui
 
   ecole:
     label: École
@@ -924,8 +1206,16 @@ themes:
       - un emploi du temps
       - une sortie scolaire
       - un microscope
+      - un porte-clés
+      - une étagère de classe
+      - un jeu de cour
+      - une corde à sauter
+      - un panier de basket
+      - une chaise
+      - un casier
+      - une affiche de classe
     contraintes_specifiques: []
-    quota_exemples: 60
+    quota_exemples: 105
     sous_themes:
       - id: question_enseignant
         description: Poser une question à un enseignant.
@@ -1049,3 +1339,93 @@ themes:
           - savoir si un exemple supplémentaire va être donné
           - savoir si la consigne du jour est bien celle qui a été comprise
           - savoir si ce point sera revu plus tard dans la journée
+      - id: recreation_pause
+        description: Parler de la récréation ou d'un moment de pause à l'école.
+        ratio_reponse: 0.95
+        poids_personas:
+          adulte: 0
+        intentions_reponse:
+          - pourquoi la récréation est utile entre deux cours
+          - ce qu'est une cour de récréation
+          - pourquoi il est bon de bouger pendant une pause
+          - ce qu'est un jeu de cour
+          - pourquoi certains jeux se jouent à plusieurs
+          - ce qu'est une règle de jeu
+          - pourquoi il est important de respecter son tour dans un jeu
+          - ce qu'est un espace de jeu partagé
+          - pourquoi certains élèves préfèrent rester calmes pendant la pause
+          - ce qu'est un temps calme
+          - pourquoi la récréation permet de se reposer avant de reprendre les cours
+          - ce qu'est un jeu collectif
+        intentions_renvoi:
+          - savoir combien de temps il reste avant la fin de la récréation
+          - savoir si un camarade veut jouer maintenant
+          - savoir si un jeu peut encore commencer avant la sonnerie
+          - savoir si un camarade est disponible pendant cette pause
+          - savoir si la récréation est bientôt terminée
+          - savoir si un espace de jeu est libre maintenant
+          - savoir si un camarade a bien compris la règle du jeu en cours
+          - savoir si tout le monde peut encore jouer avant la fin de la pause
+          - savoir si la récréation d'aujourd'hui est raccourcie
+          - savoir si un camarade veut continuer le jeu après la pause
+      - id: materiel_scolaire
+        description: "Parler d'un objet du matériel scolaire, le prêter ou l'emprunter,
+          sans détail précis inventé (pas de matière ni d'exercice)."
+        ratio_reponse: 0.95
+        poids_personas:
+          adulte: 0
+        intentions_reponse:
+          - ce qu'est une trousse
+          - pourquoi il est utile d'avoir tout son matériel avant un cours
+          - ce qu'est un cahier de brouillon
+          - pourquoi certains objets scolaires se rangent dans un casier
+          - ce qu'est un prêt de matériel entre camarades
+          - pourquoi il est utile de vérifier son matériel avant de partir
+          - ce qu'est une liste de fournitures scolaires
+          - pourquoi certains objets scolaires s'usent avec le temps
+          - ce qu'est un carnet de correspondance
+          - pourquoi partager du matériel évite d'en acheter trop
+          - ce qu'est une étiquette de nom sur du matériel
+          - pourquoi il est utile de ranger son matériel après un cours
+        intentions_renvoi:
+          - savoir si un camarade peut prêter du matériel maintenant
+          - savoir si le matériel du jour a bien été rendu
+          - savoir si un objet oublié aujourd'hui peut être remplacé maintenant
+          - savoir si un camarade a encore besoin du matériel prêté
+          - savoir si un objet manquant a été retrouvé dans la classe
+          - savoir si le matériel nécessaire pour le prochain cours est bien là
+          - savoir si un camarade est d'accord pour échanger du matériel maintenant
+          - savoir si un objet rangé dans le casier est toujours là
+          - savoir si un camarade a fini d'utiliser un objet prêté
+          - savoir si un remplacement de matériel est possible aujourd'hui
+      - id: emploi_du_temps
+        description: Poser une question sur l'organisation de la journée ou l'emploi
+          du temps scolaire, sans détail précis inventé (pas d'heure ni de matière
+          fixée).
+        ratio_reponse: 0.95
+        poids_personas:
+          adulte: 0
+        intentions_reponse:
+          - ce qu'est un emploi du temps
+          - pourquoi les matières changent au cours de la journée
+          - ce qu'est une journée type à l'école
+          - pourquoi certains jours ont plus de cours que d'autres
+          - ce qu'est une sonnerie
+          - pourquoi il est utile de connaître son emploi du temps à l'avance
+          - ce qu'est un changement de salle
+          - pourquoi l'emploi du temps peut changer certaines semaines
+          - ce qu'est une matière optionnelle
+          - pourquoi certaines journées commencent plus tôt que d'autres
+          - ce qu'est un jour de classe habituel
+          - pourquoi il est utile de préparer son sac la veille
+        intentions_renvoi:
+          - savoir quelle matière vient après celle-ci
+          - savoir si l'emploi du temps a changé aujourd'hui
+          - savoir combien de temps il reste avant le prochain cours
+          - savoir si un changement de salle est prévu maintenant
+          - savoir si la journée d'aujourd'hui se termine plus tôt
+          - savoir si un cours prévu aujourd'hui a bien lieu
+          - savoir si l'emploi du temps de demain est déjà connu
+          - savoir si une matière a été déplacée cette semaine
+          - savoir si la sonnerie de fin de journée est bientôt
+          - savoir si un cours en cours va durer plus longtemps que d'habitude

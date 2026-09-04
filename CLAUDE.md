@@ -13,11 +13,14 @@ d'un **modèle multimodal**, ciblant des **patients utilisateurs de la CAA**
 - Registre **FALC** (Facile à Lire et à Comprendre) : phrases courtes, vocabulaire
   concret, pas de jargon ni d'expressions idiomatiques, ton direct et bienveillant sans
   être infantilisant.
-- Pilote : un petit jeu d'exemples autour de **4 thèmes** — médical, famille, vie
-  quotidienne, école — avec sous-thèmes, personas et quotas définis dans
-  `src/panta_generate_data_instruct/config/taxonomy.yaml` (17 sous-thèmes — 4 par
-  thème, sauf médical qui en compte 5 depuis l'ajout de `parties_du_corps` — ×
-  3 personas × 5 exemples = 255 exemples cible).
+- Taxonomie autour de **4 thèmes** — médical, famille, vie quotidienne, école — avec
+  sous-thèmes, personas et quotas définis dans
+  `src/panta_generate_data_instruct/config/taxonomy.yaml` (29 sous-thèmes — 8 pour le
+  médical, 7 pour chacun des trois autres thèmes — × 3 personas × `n_per_cell`
+  exemples). Pilote initial : 255 exemples (17 sous-thèmes × 3 × 5). La taxonomie a
+  depuis été étoffée (29 sous-thèmes, plus d'intentions/concepts/types de question) en
+  préparation d'un passage à l'échelle vers ~20 000 exemples (`n_per_cell` ≈ 230),
+  pour donner assez de matière combinatoire avant un sur-échantillonnage aussi fort.
 - Personas : 3 personas organisés par **tranche d'âge et niveau de langage/vocabulaire**
   (enfant, adolescent, adulte), jamais par profil médical ou type de handicap précis.
 - Chaque `instruction` et chaque `output` tiennent toujours en **une seule phrase**
