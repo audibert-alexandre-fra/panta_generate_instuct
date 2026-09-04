@@ -46,6 +46,7 @@ from panta_generate_data_instruct.filters import (
     demonstratifs_non_introduits,
     destinataire_absent_de_la_liste,
     deuxieme_personne_designe_tiers,
+    ecriture_inclusive,
     engagement_physique_assistant,
     explication_interdite_en_renvoi,
     guillemets_ou_ponctuation_invalides,
@@ -448,6 +449,11 @@ def _generate_instruction_pools(
                     tag, instruction,
                 )
                 continue
+            if ecriture_inclusive(instruction):
+                logger.warning(
+                    "[%s] instruction rejetée (écriture inclusive) : %s", tag, instruction,
+                )
+                continue
 
             candidate.instruction = instruction
 
@@ -655,6 +661,8 @@ def _generate_outputs(
             rejet = "plusieurs phrases au lieu d'une seule"
         elif output_trop_long(output_text, taxonomy.parametres_generation.output_max_mots):
             rejet = f"output trop long (> {taxonomy.parametres_generation.output_max_mots} mots)"
+        elif ecriture_inclusive(output_text):
+            rejet = "écriture inclusive"
         else:
             fautes = incorrections_frequentes(output_text)
             if fautes:

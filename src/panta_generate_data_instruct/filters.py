@@ -217,7 +217,7 @@ _DEUXIEME_PERSONNE_RE = re.compile(r"\b(tu|t'|toi|vous)\b", re.IGNORECASE)
 
 # Verbes/constructions à la deuxième personne qui n'ont de sens que si le TIERS en est
 # le sujet (jamais l'assistant) : un état émotionnel attribué à l'interlocuteur, un
-# verbe de communication caractéristique d'un proche/enseignant·e, ou une offre
+# verbe de communication caractéristique d'un proche/enseignant, ou une offre
 # d'écoute d'un contenu qui appartient au persona.
 _ATTRIBUTION_ETAT_TIERS_RE = re.compile(
     r"\b(tu|vous)\s+(es|êtes|as|avez)\s+"
@@ -353,6 +353,22 @@ def plusieurs_phrases(texte: str) -> bool:
     (objet de la question, destinataire) doivent être reliées dans une seule phrase
     (virgule ou conjonction) plutôt que présentées comme deux phrases distinctes."""
     return len(_FIN_PHRASE_RE.findall(texte.strip())) > 1
+
+
+# Point médian ("·"), puce ("•") ou parenthèse de genre collée à un mot (ex.
+# "enseignant(e)", "enseignant(ne)") : les trois formes usuelles d'écriture inclusive.
+_ECRITURE_INCLUSIVE_RE = re.compile(r"[·•]|\w\((?:e|ne|le|trice|se)\.?s?\)")
+
+
+def ecriture_inclusive(texte: str) -> bool:
+    """Détecte une marque d'écriture inclusive (point médian, puce, parenthèse de
+    genre), jamais autorisée ni dans l'instruction ni dans l'output (cf. style_guide) :
+    la forme attendue est toujours le masculin générique ("un enseignant", "un
+    patient") ou, si les deux genres doivent être nommés, une forme en toutes lettres
+    ("ta maîtresse ou ton maître") plutôt qu'une abréviation typographique. Un point
+    médian recopié tel quel depuis la taxonomie (ex. "conjoint·e" dans un
+    interlocuteur) a déjà été observé fuiter verbatim dans un output généré."""
+    return bool(_ECRITURE_INCLUSIVE_RE.search(texte))
 
 
 def output_trop_long(texte: str, max_mots: int) -> bool:

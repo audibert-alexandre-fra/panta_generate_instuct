@@ -82,6 +82,11 @@ style_guide:
   regles:
     - Phrases courtes (une idée par phrase).
     - Vocabulaire concret, pas de jargon.
+    - "Jamais d'écriture inclusive, ni dans l'instruction ni dans l'output (interdit :
+      point médian comme \"enseignant·e\", parenthèse de genre comme \"enseignant(e)\") :
+      utilise toujours la forme masculine générique (\"un enseignant\", \"un patient\"),
+      ou si les deux genres doivent être nommés, la forme en toutes lettres (\"ta
+      maîtresse ou ton maître\") plutôt qu'une abréviation typographique."
     - Pas d'expressions idiomatiques ni de sens figuré.
     - Ton direct et bienveillant, jamais infantilisant.
     - "Le champ instruction reflète un message composé via un système de CAA ; son degré
@@ -234,7 +239,7 @@ personas:
     longueur_max_mots: 12
     grammaire: phrases simples sujet-verbe-complément, conjugaison correcte au présent,
       ponctuation simple
-    registre_lexical: vocabulaire courant d'adolescent·e, familier mais correct
+    registre_lexical: vocabulaire courant d'adolescent, familier mais correct
     bruit_caracteristique: quasiment aucun bruit de forme ; phrases courtes surtout par
       fatigue de saisie, pas par erreur de forme
     registre_adresse: tu
@@ -297,7 +302,7 @@ personas:
 themes:
   medical:
     label: Médical
-    contexte: Questions et échanges d'un·e patient·e avec un·e spécialiste (médecin, kiné, orthophoniste...).
+    contexte: Questions et échanges d'un patient avec un spécialiste (médecin, kiné, orthophoniste...).
     interlocuteur_par_persona:
       enfant: [ton docteur]
       adolescent: [ton médecin]
@@ -530,10 +535,11 @@ themes:
 
   famille:
     label: Famille
-    contexte: Échanges avec les proches (parents, fratrie, enfants, conjoint·e).
+    contexte: Échanges avec les proches (parents, fratrie, enfants, partenaire).
     # "votre conjoint·e" (point médian) a été observé recopié tel quel dans des
     # outputs : remplacé par "votre partenaire", gender-neutre sans ponctuation
-    # inclusive.
+    # inclusive (jamais d'écriture inclusive nulle part dans la taxonomie ni dans les
+    # exemples générés, cf. règle dédiée dans style_guide.regles).
     interlocuteur_par_persona:
       enfant: [tes parents]
       adolescent: [tes parents, ta fratrie]
@@ -863,14 +869,15 @@ themes:
 
   ecole:
     label: École
-    contexte: "Vie scolaire : classe, enseignant·e, camarades."
+    contexte: "Vie scolaire : classe, enseignant, camarades."
     # "ta maîtresse ou ton maître" / "ton ou ta prof" désignent UNE seule personne de
-    # genre inconnu (variante grammaticale, pas une énumération de personnes
-    # différentes) : ne pas les décomposer. "un camarade" est un destinataire
-    # alternatif : une question qui porte sur un camarade (ex. dans aide_camarade) se
-    # renvoie vers lui, pas systématiquement vers l'enseignant·e — et inversement, une
-    # question de procédure ou d'autorité (ex. le tour de parole dans un groupe) se
-    # renvoie vers l'enseignant·e, pas vers un camarade au hasard.
+    # genre inconnu (variante grammaticale en toutes lettres, jamais un point médian ni
+    # une parenthèse : pas une énumération de personnes différentes) : ne pas les
+    # décomposer. "un camarade" est un destinataire alternatif : une question qui porte
+    # sur un camarade (ex. dans aide_camarade) se renvoie vers lui, pas
+    # systématiquement vers l'enseignant — et inversement, une question de procédure ou
+    # d'autorité (ex. le tour de parole dans un groupe) se renvoie vers l'enseignant,
+    # pas vers un camarade au hasard.
     interlocuteur_par_persona:
       enfant: [ta maîtresse ou ton maître, un camarade]
       adolescent: [ton ou ta prof, un camarade]
@@ -921,7 +928,7 @@ themes:
     quota_exemples: 60
     sous_themes:
       - id: question_enseignant
-        description: Poser une question à un·e enseignant·e.
+        description: Poser une question à un enseignant.
         ratio_reponse: 0.95
         poids_personas:
           adulte: 0
@@ -951,7 +958,7 @@ themes:
           - savoir si un délai donné aujourd'hui peut être prolongé
           - savoir si un devoir du jour est encore attendu demain
       - id: aide_camarade
-        description: "Demander ou proposer de l'aide à un·e camarade pour une activité
+        description: "Demander ou proposer de l'aide à un camarade pour une activité
           scolaire, sans détail précis sur le contenu de l'activité (pas de matière,
           d'exercice ni de consigne inventés)."
         ratio_reponse: 0.95

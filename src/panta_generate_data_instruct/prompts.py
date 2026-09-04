@@ -28,7 +28,7 @@ de handicap de la communication.
 
 Chaque exemple simule un échange réel : "instruction" est le message composé par le \
 persona via son moyen de CAA, et "output" est la réponse de l'ASSISTANT CAA lui-même \
-(pas celle d'un tiers réel comme un·e médecin, un·e enseignant·e ou un·e proche). \
+(pas celle d'un tiers réel comme un médecin, un enseignant ou un proche). \
 L'assistant est un outil de communication que le persona utilise : il ne participe \
 jamais physiquement à la situation vécue par le persona (il n'est pas en classe, pas \
 au rendez-vous médical, etc.) et ne connaît donc JAMAIS un contenu qui ne lui a pas \
@@ -41,7 +41,7 @@ utilisateur :
 - Cas RÉPONSE : l'assistant répond directement à la question, de façon factuelle, \
 simple et courte.
 - Cas RENVOI : l'assistant n'est pas en position de savoir. Il dit qu'il ne peut pas \
-répondre, et indique vers qui se tourner (le médecin, l'enseignant·e, la personne en \
+répondre, et indique vers qui se tourner (le médecin, l'enseignant, la personne en \
 face de lui, un proche, selon la situation).
 
 Le critère de bascule entre les deux cas n'est JAMAIS le sujet de la question (santé, \
@@ -91,7 +91,7 @@ persona parle de son interlocuteur à la troisième personne.
 Correct : "Est-ce que mon frère est fâché contre moi ?", "Est-ce que ma sœur a le \
 temps de m'écouter maintenant ?"
 Interdit : "Pourquoi tu es fâché avec moi ?" (adressée au frère), "Tu veux que je \
-t'aide ?" (adressée au camarade), "Tu expliques trop vite" (adressée à l'enseignant·e).
+t'aide ?" (adressée au camarade), "Tu expliques trop vite" (adressée à l'enseignant).
 Le "tu" ou le "vous" d'une instruction ne peut désigner que l'assistant lui-même."""
 
 
@@ -281,7 +281,7 @@ elle a fini").
 Destinataires possibles pour ce thème et ce persona : {destinataires_possibles}. \
 Choisis un seul destinataire DANS CETTE LISTE, celui qui correspond le mieux au \
 contenu de l'instruction (ex. une instruction qui parle d'un camarade se renvoie vers \
-le destinataire "camarade" de la liste, pas vers l'enseignant·e ; une instruction qui \
+le destinataire "camarade" de la liste, pas vers l'enseignant ; une instruction qui \
 parle d'une sœur se renvoie vers le destinataire correspondant à la fratrie, pas vers \
 le conjoint ou la conjointe). Recopie ce destinataire TEL QUEL, sans le modifier ni y \
 ajouter la moindre précision (interdit par ex. "l'agent de la mairie" si la liste ne \
@@ -313,9 +313,9 @@ fait lui-même (toujours interdit), seulement la limite de l'assistant."""
 
 STRUCTURE_RENVOI_ACTION_CONCRETE = """Structure à suivre : PROPOSITION D'UNE ACTION CONCRÈTE — une idée propose une \
 action concrète que le persona peut faire lui-même pour obtenir la réponse (ex. "tu \
-peux en parler à ton docteur", "tu peux aller voir ton enseignant·e"), jamais à \
+peux en parler à ton docteur", "tu peux aller voir ton enseignant"), jamais à \
 l'impératif adressé au persona (interdit par ex. "parle à ton docteur", "va voir ton \
-enseignant·e") ; l'autre idée, si présente, reste très courte."""
+enseignant") ; l'autre idée, si présente, reste très courte."""
 
 STRUCTURE_RENVOI_AIDE_FORMULATION = """Structure à suivre : AIDE À FORMULER LA QUESTION — reformule directement, en une \
 seule idée, la question à poser à la bonne personne, en conservant le mot interrogatif \
